@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Kartu Pintar",
+    "slug": "kartu-pintar-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#1a2332"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1a2332"
+      },
+      "package": "com.poltekkad.kartupintar",
+      "permissions": [
+        "android.permission.NFC",
+        "android.permission.CAMERA"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Izinkan Kartu Pintar mengakses kamera untuk scan QR Code"
+        }
+      ]
+    ]
+  }
+}
