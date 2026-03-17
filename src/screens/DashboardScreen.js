@@ -99,7 +99,7 @@ export default function DashboardScreen({ navigation }) {
         <MenuBtn icon="card" label="Pembayaran" onPress={() => navigation.navigate('Pembayaran')} color={COLORS.success} />
         <MenuBtn icon="people" label="Anggota" onPress={() => navigation.navigate('AnggotaList')} color={COLORS.info} />
         <MenuBtn icon="receipt" label="Transaksi" onPress={() => navigation.navigate('Transaksi')} color={COLORS.warning} />
-        <MenuBtn icon="location" label="Lacak Kartu" onPress={() => navigation.navigate('LacakKartu')} color={COLORS.danger} />
+        <MenuBtn icon="location" label="Lacak" onPress={() => navigation.navigate('LacakKartu')} color={COLORS.danger} />
       </View>
 
       <View style={{ height: 30 }} />

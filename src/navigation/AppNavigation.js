@@ -16,6 +16,7 @@ import TopUpScreen from '../screens/TopUpScreen';
 import AnggotaListScreen from '../screens/AnggotaListScreen';
 import TransaksiScreen from '../screens/TransaksiScreen';
 import LacakKartuScreen from '../screens/LacakKartuScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -24,55 +25,62 @@ const navTheme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background
 const screenOpts = { headerStyle: { backgroundColor: COLORS.bgDark }, headerTintColor: COLORS.textPrimary, headerTitleStyle: { fontWeight: '700' } };
 const tabStyle = { backgroundColor: COLORS.bgCard, borderTopColor: COLORS.border, height: 60, paddingBottom: 8, paddingTop: 4 };
 
+const tabIcons = {
+  Dashboard: ['grid', 'grid-outline'],
+  Scan: ['scan', 'scan-outline'],
+  Bayar: ['card', 'card-outline'],
+  TopUp: ['wallet', 'wallet-outline'],
+  Riwayat: ['receipt', 'receipt-outline'],
+  Penjualan: ['receipt', 'receipt-outline'],
+  ScanQR: ['scan', 'scan-outline'],
+  ScanNFC: ['wifi', 'wifi-outline'],
+  Profil: ['person-circle', 'person-circle-outline'],
+};
+
+function getTabScreenOptions(route) {
+  return {
+    ...screenOpts,
+    tabBarStyle: tabStyle,
+    tabBarActiveTintColor: COLORS.accent,
+    tabBarInactiveTintColor: COLORS.textMuted,
+    tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+    tabBarIcon: ({ focused, color }) => {
+      const icons = tabIcons[route.name] || ['help-circle', 'help-circle-outline'];
+      return <Ionicons name={focused ? icons[0] : icons[1]} size={22} color={color} />;
+    },
+  };
+}
+
 function AdminTabs() {
   return (
-    <Tab.Navigator screenOptions={({ route }) => ({
-      ...screenOpts, tabBarStyle: tabStyle, tabBarActiveTintColor: COLORS.accent, tabBarInactiveTintColor: COLORS.textMuted,
-      tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
-      tabBarIcon: ({ focused, color }) => {
-        const icons = { Dashboard: 'grid', Scan: 'scan', Bayar: 'card', TopUp: 'wallet', Riwayat: 'receipt' };
-        return <Ionicons name={icons[route.name] + (focused ? '' : '-outline')} size={22} color={color} />;
-      },
-    })}>
+    <Tab.Navigator screenOptions={({ route }) => getTabScreenOptions(route)}>
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
       <Tab.Screen name="Scan" component={ScanQRScreen} options={{ title: 'Scan', headerTitle: 'Scan QR Code' }} />
       <Tab.Screen name="Bayar" component={PembayaranScreen} options={{ title: 'Bayar', headerTitle: 'Pembayaran' }} />
       <Tab.Screen name="TopUp" component={TopUpScreen} options={{ title: 'Top Up', headerTitle: 'Top Up Saldo' }} />
-      <Tab.Screen name="Riwayat" component={TransaksiScreen} options={{ title: 'Riwayat', headerTitle: 'Semua Transaksi' }} />
+      <Tab.Screen name="Profil" component={ProfileScreen} options={{ title: 'Profil', headerTitle: 'Profil Saya' }} />
     </Tab.Navigator>
   );
 }
 
 function KantinTabs() {
   return (
-    <Tab.Navigator screenOptions={({ route }) => ({
-      ...screenOpts, tabBarStyle: tabStyle, tabBarActiveTintColor: COLORS.accent, tabBarInactiveTintColor: COLORS.textMuted,
-      tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
-      tabBarIcon: ({ focused, color }) => {
-        const icons = { Bayar: 'card', Scan: 'scan', Penjualan: 'receipt' };
-        return <Ionicons name={icons[route.name] + (focused ? '' : '-outline')} size={22} color={color} />;
-      },
-    })}>
+    <Tab.Navigator screenOptions={({ route }) => getTabScreenOptions(route)}>
       <Tab.Screen name="Bayar" component={PembayaranScreen} options={{ title: 'Bayar', headerTitle: 'Pembayaran Kantin' }} />
       <Tab.Screen name="Scan" component={ScanQRScreen} options={{ title: 'Scan', headerTitle: 'Scan QR' }} />
       <Tab.Screen name="Penjualan" component={TransaksiScreen} options={{ title: 'Penjualan', headerTitle: 'Riwayat Penjualan' }} />
+      <Tab.Screen name="Profil" component={ProfileScreen} options={{ title: 'Profil', headerTitle: 'Profil Saya' }} />
     </Tab.Navigator>
   );
 }
 
 function UserTabs() {
   return (
-    <Tab.Navigator screenOptions={({ route }) => ({
-      ...screenOpts, tabBarStyle: tabStyle, tabBarActiveTintColor: COLORS.accent, tabBarInactiveTintColor: COLORS.textMuted,
-      tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
-      tabBarIcon: ({ focused, color }) => {
-        const icons = { ScanQR: 'scan', ScanNFC: 'wifi', Riwayat: 'receipt' };
-        return <Ionicons name={icons[route.name] + (focused ? '' : '-outline')} size={22} color={color} />;
-      },
-    })}>
+    <Tab.Navigator screenOptions={({ route }) => getTabScreenOptions(route)}>
       <Tab.Screen name="ScanQR" component={ScanQRScreen} options={{ title: 'Scan QR', headerTitle: 'Scan QR Code' }} />
       <Tab.Screen name="ScanNFC" component={ScanNFCScreen} options={{ title: 'Scan NFC', headerTitle: 'Scan NFC' }} />
       <Tab.Screen name="Riwayat" component={TransaksiScreen} options={{ title: 'Riwayat', headerTitle: 'Transaksi Saya' }} />
+      <Tab.Screen name="Profil" component={ProfileScreen} options={{ title: 'Profil', headerTitle: 'Profil Saya' }} />
     </Tab.Navigator>
   );
 }
@@ -104,6 +112,7 @@ export default function AppNavigation() {
         <Stack.Screen name="AnggotaList" component={AnggotaListScreen} options={{ title: 'Data Anggota' }} />
         <Stack.Screen name="Transaksi" component={TransaksiScreen} options={{ title: 'Riwayat Transaksi' }} />
         <Stack.Screen name="LacakKartu" component={LacakKartuScreen} options={{ title: 'Lacak Kartu' }} />
+        <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profil Saya' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
