@@ -4,6 +4,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES } from '../utils/theme';
 import { scanAPI } from '../services/api';
+import { sendScanLocation } from '../utils/location';
 
 export default function ScanQRScreen({ navigation }) {
   const [permission, requestPermission] = useCameraPermissions();
@@ -14,6 +15,7 @@ export default function ScanQRScreen({ navigation }) {
   const handleBarCodeScanned = async ({ data }) => {
     if (scanned) return;
     setScanned(true);
+    console.log('[QR] Raw scan data:', data);
     await processQR(data);
   };
 
@@ -21,6 +23,14 @@ export default function ScanQRScreen({ navigation }) {
     try {
       const result = await scanAPI.qr(code);
       if (result.success) {
+        // AUTO GPS: Kirim lokasi HP sebagai lokasi terakhir kartu
+        const kartuId = result.data.kartu_id;
+        sendScanLocation(kartuId).then((locResult) => {
+          if (locResult?.success) {
+            console.log(`[GPS] Lokasi kartu ${kartuId} updated via QR scan`);
+          }
+        });
+
         navigation.navigate('ScanResult', { anggota: result.data });
       } else {
         Alert.alert('Tidak Ditemukan', result.message, [
@@ -69,7 +79,8 @@ export default function ScanQRScreen({ navigation }) {
                 <View style={[styles.corner, styles.bottomLeft]} />
                 <View style={[styles.corner, styles.bottomRight]} />
               </View>
-              <Text style={styles.scanText}>Arahkan kamera ke QR Code Kartu Pintar</Text>
+              <Text style={styles.scanText}>Arahkan kamera ke QR Code MiLi Card</Text>
+              <Text style={styles.scanSubtext}>Lokasi GPS otomatis ter-record saat scan</Text>
             </View>
           </CameraView>
 
@@ -86,11 +97,11 @@ export default function ScanQRScreen({ navigation }) {
           <Text style={styles.manualTitle}>Masukkan Kode Manual</Text>
           <TextInput
             style={styles.manualInput}
-            placeholder="Contoh: KP-2025-001"
+            placeholder="Contoh: KP-2025-001 atau URL MiLi"
             placeholderTextColor={COLORS.textMuted}
             value={manualCode}
             onChangeText={setManualCode}
-            autoCapitalize="characters"
+            autoCapitalize="none"
           />
           <TouchableOpacity style={styles.manualBtn} onPress={handleManualSubmit}>
             <Text style={styles.manualBtnText}>Cari</Text>
@@ -118,6 +129,7 @@ const styles = StyleSheet.create({
   bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3 },
   bottomRight: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3 },
   scanText: { color: COLORS.textPrimary, fontSize: SIZES.md, marginTop: 24, textAlign: 'center' },
+  scanSubtext: { color: COLORS.accent, fontSize: SIZES.xs, marginTop: 6, textAlign: 'center', fontStyle: 'italic' },
   rescanBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.accent, margin: 16, padding: 14, borderRadius: 12, gap: 8,

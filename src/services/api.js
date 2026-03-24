@@ -1,13 +1,11 @@
 // Kartu Pintar - API Service
-// Handles all API calls with JWT authentication
+// UPDATED: MiLi Card integration - handles MiLi URLs as card identifiers
 
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ⚠️ GANTI INI dengan IP server Flask kamu
-// Kalau pakai Expo Go di HP, gunakan IP WiFi komputer (bukan localhost)
-// Contoh: http://192.168.1.100:5000
-const API_BASE = "http://192.168.1.146:5000";
+const API_BASE = "http://192.168.1.144:5000";
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -15,31 +13,47 @@ const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Auto-attach JWT token to every request
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Handle 401 (token expired) globally
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
       await AsyncStorage.multiRemove(["token", "user"]);
-      // Navigation will handle redirect to login
     }
     return Promise.reject(error);
   },
 );
 
-// ============================================================
-// AUTH
-// ============================================================
+/**
+ * Extract MiLi Card ID dari URL bawaan MiLi
+ * Input:  "https://micard.mymili.com/info/FZDc3ImYoVWNm5kNwUTT5IjM"
+ * Output: "FZDc3ImYoVWNm5kNwUTT5IjM"
+ */
+function extractMiliId(rawData) {
+  if (!rawData) return rawData;
+  const data = rawData.trim();
 
+  // Handle semua varian URL MiLi Card
+  // - micard.mymili.com/info/xxx
+  // - rd.mymili.com/info/xxx
+  // - https://micard.mymili.com/info/xxx
+  // - https://rd.mymili.com/info/xxx
+  if (data.includes("/info/")) {
+    const parts = data.split("/info/");
+    if (parts.length > 1) {
+      return parts[1].split("?")[0].split("#")[0].trim();
+    }
+  }
+
+  return data;
+}
+
+// AUTH
 export const authAPI = {
   login: async (username, password) => {
     const res = await api.post("/api/auth/login", { username, password });
@@ -49,62 +63,59 @@ export const authAPI = {
     }
     return res.data;
   },
-
   logout: async () => {
     await AsyncStorage.multiRemove(["token", "user"]);
   },
-
   getMe: async () => {
     const res = await api.get("/api/auth/me");
     return res.data;
   },
-
   getStoredUser: async () => {
     const userStr = await AsyncStorage.getItem("user");
     return userStr ? JSON.parse(userStr) : null;
   },
-
   getToken: async () => {
     return await AsyncStorage.getItem("token");
   },
 };
 
-// ============================================================
 // ANGGOTA
-// ============================================================
-
 export const anggotaAPI = {
   list: async (search = "") => {
     const res = await api.get("/api/anggota", { params: { search } });
     return res.data;
   },
-
   detail: async (kartuId) => {
     const res = await api.get(`/api/anggota/${kartuId}`);
     return res.data;
   },
 };
 
-// ============================================================
-// SCAN
-// ============================================================
-
+// SCAN (MiLi Card NFC & QR)
 export const scanAPI = {
-  nfc: async (nfcUid) => {
-    const res = await api.get(`/api/scan/nfc/${nfcUid}`);
+  /**
+   * Scan NFC - kirim NFC UID atau NDEF URL dari MiLi Card
+   * Backend akan coba lookup di: nfc_uid, mili_id, qr_data, kartu_id
+   * TIDAK redirect ke MiLi app → langsung tampilkan identitas
+   */
+  nfc: async (nfcData) => {
+    const cleaned = extractMiliId(nfcData);
+    const res = await api.get(`/api/scan/nfc/${encodeURIComponent(cleaned)}`);
     return res.data;
   },
 
+  /**
+   * Scan QR - kirim URL QR dari MiLi Card
+   * Contoh: "https://micard.mymili.com/info/FZDc3ImYoVWNm5kNwUTT5IjM"
+   * Pakai POST agar URL dengan slash aman dikirim
+   */
   qr: async (qrData) => {
-    const res = await api.get(`/api/scan/qr/${qrData}`);
+    const res = await api.post("/api/scan/qr", { qr_data: qrData });
     return res.data;
   },
 };
 
-// ============================================================
 // KEUANGAN
-// ============================================================
-
 export const keuanganAPI = {
   pembayaran: async (
     kartuId,
@@ -120,15 +131,10 @@ export const keuanganAPI = {
     });
     return res.data;
   },
-
   topup: async (kartuId, nominal) => {
-    const res = await api.post("/api/topup", {
-      kartu_id: kartuId,
-      nominal,
-    });
+    const res = await api.post("/api/topup", { kartu_id: kartuId, nominal });
     return res.data;
   },
-
   transaksi: async (kartuId = "", jenis = "", limit = 50) => {
     const res = await api.get("/api/transaksi", {
       params: { kartu_id: kartuId, jenis, limit },
@@ -137,17 +143,39 @@ export const keuanganAPI = {
   },
 };
 
-// ============================================================
-// LACAK & MENU
-// ============================================================
-
+// LACAK
 export const lacakAPI = {
   get: async (kartuId) => {
     const res = await api.get(`/api/lacak/${kartuId}`);
     return res.data;
   },
+  updateLocation: async (
+    kartuId,
+    latitude,
+    longitude,
+    lokasiNama = "GPS Update",
+  ) => {
+    const res = await api.post(`/api/anggota/${kartuId}/update-location`, {
+      latitude,
+      longitude,
+      lokasi_nama: lokasiNama,
+      sumber: "GPS_Mobile",
+    });
+    return res.data;
+  },
 };
 
+// MILI CARD REGISTRATION (Admin)
+export const miliCardAPI = {
+  registerCard: async (kartuId, miliId, nfcUid = null) => {
+    const payload = { mili_id: miliId };
+    if (nfcUid) payload.nfc_uid = nfcUid;
+    const res = await api.put(`/api/anggota/${kartuId}/update-card`, payload);
+    return res.data;
+  },
+};
+
+// MENU & DASHBOARD
 export const menuAPI = {
   list: async () => {
     const res = await api.get("/api/menu");
@@ -162,5 +190,5 @@ export const dashboardAPI = {
   },
 };
 
-export { API_BASE };
+export { API_BASE, extractMiliId };
 export default api;

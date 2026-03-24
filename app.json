@@ -15,7 +15,8 @@
       "package": "com.poltekkad.kartupintar",
       "permissions": [
         "android.permission.NFC",
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -24,7 +25,18 @@
         {
           "cameraPermission": "Izinkan Kartu Pintar mengakses kamera untuk scan QR Code"
         }
+      ],
+      [
+        "react-native-nfc-manager",
+        {
+          "nfcPermission": "Izinkan Kartu Pintar membaca NFC untuk identifikasi MiLi Card"
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "deac95ad-678f-4027-805d-56c609040b4a"
+      }
+    }
   }
 }
