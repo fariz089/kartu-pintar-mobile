@@ -5,7 +5,7 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ⚠️ GANTI INI dengan IP server Flask kamu
-const API_BASE = "http://192.168.1.144:5000";
+const API_BASE = "http://192.168.18.20:5000";
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -131,7 +131,7 @@ export const keuanganAPI = {
     });
     return res.data;
   },
-  
+
   // Pembayaran dengan cart (supermarket style)
   pembayaranCart: async (kartuId, items, metode = "Manual") => {
     const res = await api.post("/api/pembayaran/cart", {
@@ -141,7 +141,7 @@ export const keuanganAPI = {
     });
     return res.data;
   },
-  
+
   // Pembayaran instant via NFC/QR tap
   pembayaranTap: async (scanData, items = [], metode = "NFC") => {
     const cleaned = extractMiliId(scanData);
@@ -152,12 +152,12 @@ export const keuanganAPI = {
     });
     return res.data;
   },
-  
+
   topup: async (kartuId, nominal) => {
     const res = await api.post("/api/topup", { kartu_id: kartuId, nominal });
     return res.data;
   },
-  
+
   // Top up instant via NFC/QR tap
   topupTap: async (scanData, nominal = 0, metode = "NFC") => {
     const cleaned = extractMiliId(scanData);
@@ -168,14 +168,14 @@ export const keuanganAPI = {
     });
     return res.data;
   },
-  
+
   transaksi: async (kartuId = "", jenis = "", limit = 50) => {
     const res = await api.get("/api/transaksi", {
       params: { kartu_id: kartuId, jenis, limit },
     });
     return res.data;
   },
-  
+
   transaksiDetail: async (trxId) => {
     const res = await api.get(`/api/transaksi/${trxId}/detail`);
     return res.data;
