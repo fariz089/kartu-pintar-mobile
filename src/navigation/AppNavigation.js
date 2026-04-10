@@ -12,6 +12,7 @@ import ScanQRScreen from '../screens/ScanQRScreen';
 import ScanNFCScreen from '../screens/ScanNFCScreen';
 import ScanResultScreen from '../screens/ScanResultScreen';
 import PembayaranScreen from '../screens/PembayaranScreen';
+import POSScreen from '../screens/POSScreen';
 import TopUpScreen from '../screens/TopUpScreen';
 import AnggotaListScreen from '../screens/AnggotaListScreen';
 import TransaksiScreen from '../screens/TransaksiScreen';
@@ -29,6 +30,7 @@ const tabIcons = {
   Dashboard: ['grid', 'grid-outline'],
   Scan: ['scan', 'scan-outline'],
   Bayar: ['card', 'card-outline'],
+  Kasir: ['cart', 'cart-outline'],
   TopUp: ['wallet', 'wallet-outline'],
   Riwayat: ['receipt', 'receipt-outline'],
   Penjualan: ['receipt', 'receipt-outline'],
@@ -55,8 +57,8 @@ function AdminTabs() {
   return (
     <Tab.Navigator screenOptions={({ route }) => getTabScreenOptions(route)}>
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
+      <Tab.Screen name="Kasir" component={POSScreen} options={{ title: 'Kasir', headerTitle: 'Point of Sale' }} />
       <Tab.Screen name="Scan" component={ScanQRScreen} options={{ title: 'Scan', headerTitle: 'Scan QR Code' }} />
-      <Tab.Screen name="Bayar" component={PembayaranScreen} options={{ title: 'Bayar', headerTitle: 'Pembayaran' }} />
       <Tab.Screen name="TopUp" component={TopUpScreen} options={{ title: 'Top Up', headerTitle: 'Top Up Saldo' }} />
       <Tab.Screen name="Profil" component={ProfileScreen} options={{ title: 'Profil', headerTitle: 'Profil Saya' }} />
     </Tab.Navigator>
@@ -66,7 +68,7 @@ function AdminTabs() {
 function KantinTabs() {
   return (
     <Tab.Navigator screenOptions={({ route }) => getTabScreenOptions(route)}>
-      <Tab.Screen name="Bayar" component={PembayaranScreen} options={{ title: 'Bayar', headerTitle: 'Pembayaran Kantin' }} />
+      <Tab.Screen name="Kasir" component={POSScreen} options={{ title: 'Kasir', headerTitle: 'Point of Sale' }} />
       <Tab.Screen name="Scan" component={ScanQRScreen} options={{ title: 'Scan', headerTitle: 'Scan QR' }} />
       <Tab.Screen name="Penjualan" component={TransaksiScreen} options={{ title: 'Penjualan', headerTitle: 'Riwayat Penjualan' }} />
       <Tab.Screen name="Profil" component={ProfileScreen} options={{ title: 'Profil', headerTitle: 'Profil Saya' }} />
@@ -108,6 +110,7 @@ export default function AppNavigation() {
         <Stack.Screen name="ScanNFC" component={ScanNFCScreen} options={{ title: 'Scan NFC' }} />
         <Stack.Screen name="ScanResult" component={ScanResultScreen} options={{ title: 'Identitas Anggota' }} />
         <Stack.Screen name="Pembayaran" component={PembayaranScreen} options={{ title: 'Pembayaran' }} />
+        <Stack.Screen name="POS" component={POSScreen} options={{ title: 'Point of Sale' }} />
         <Stack.Screen name="TopUp" component={TopUpScreen} options={{ title: 'Top Up Saldo' }} />
         <Stack.Screen name="AnggotaList" component={AnggotaListScreen} options={{ title: 'Data Anggota' }} />
         <Stack.Screen name="Transaksi" component={TransaksiScreen} options={{ title: 'Riwayat Transaksi' }} />

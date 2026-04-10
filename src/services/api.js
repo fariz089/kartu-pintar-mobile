@@ -131,14 +131,80 @@ export const keuanganAPI = {
     });
     return res.data;
   },
+  
+  // Pembayaran dengan cart (supermarket style)
+  pembayaranCart: async (kartuId, items, metode = "Manual") => {
+    const res = await api.post("/api/pembayaran/cart", {
+      kartu_id: kartuId,
+      items, // [{produk_id, jumlah}]
+      metode,
+    });
+    return res.data;
+  },
+  
+  // Pembayaran instant via NFC/QR tap
+  pembayaranTap: async (scanData, items = [], metode = "NFC") => {
+    const cleaned = extractMiliId(scanData);
+    const res = await api.post("/api/pembayaran/tap", {
+      scan_data: cleaned,
+      items, // [{produk_id, jumlah}] - kosong = hanya cek member
+      metode,
+    });
+    return res.data;
+  },
+  
   topup: async (kartuId, nominal) => {
     const res = await api.post("/api/topup", { kartu_id: kartuId, nominal });
     return res.data;
   },
+  
+  // Top up instant via NFC/QR tap
+  topupTap: async (scanData, nominal = 0, metode = "NFC") => {
+    const cleaned = extractMiliId(scanData);
+    const res = await api.post("/api/topup/tap", {
+      scan_data: cleaned,
+      nominal, // 0 = hanya cek member
+      metode,
+    });
+    return res.data;
+  },
+  
   transaksi: async (kartuId = "", jenis = "", limit = 50) => {
     const res = await api.get("/api/transaksi", {
       params: { kartu_id: kartuId, jenis, limit },
     });
+    return res.data;
+  },
+  
+  transaksiDetail: async (trxId) => {
+    const res = await api.get(`/api/transaksi/${trxId}/detail`);
+    return res.data;
+  },
+};
+
+// PRODUK & KATEGORI
+export const produkAPI = {
+  list: async (kategoriId = null, search = "", availableOnly = true) => {
+    const params = {};
+    if (kategoriId) params.kategori_id = kategoriId;
+    if (search) params.search = search;
+    params.available = availableOnly ? "true" : "false";
+    const res = await api.get("/api/produk", { params });
+    return res.data;
+  },
+  detail: async (produkId) => {
+    const res = await api.get(`/api/produk/${produkId}`);
+    return res.data;
+  },
+  byKode: async (kode) => {
+    const res = await api.get(`/api/produk/kode/${kode}`);
+    return res.data;
+  },
+};
+
+export const kategoriAPI = {
+  list: async () => {
+    const res = await api.get("/api/kategori");
     return res.data;
   },
 };
