@@ -96,7 +96,6 @@ export default function DashboardScreen({ navigation }) {
       <View style={styles.menuGrid}>
         <MenuBtn icon="scan" label="Scan QR" onPress={() => navigation.navigate('ScanQR')} color={COLORS.accent} />
         <MenuBtn icon="wifi" label="Scan NFC" onPress={() => navigation.navigate('ScanNFC')} color={COLORS.primary} />
-        <MenuBtn icon="card" label="Pembayaran" onPress={() => navigation.navigate('Pembayaran')} color={COLORS.success} />
         <MenuBtn icon="people" label="Anggota" onPress={() => navigation.navigate('AnggotaList')} color={COLORS.info} />
         <MenuBtn icon="receipt" label="Transaksi" onPress={() => navigation.navigate('Transaksi')} color={COLORS.warning} />
         <MenuBtn icon="location" label="Lacak" onPress={() => navigation.navigate('LacakKartu')} color={COLORS.danger} />

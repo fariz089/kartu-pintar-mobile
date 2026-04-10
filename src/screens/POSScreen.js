@@ -1,16 +1,33 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, Alert, 
-  ScrollView, FlatList, Modal, TextInput, ActivityIndicator 
+  ScrollView, FlatList, Modal, TextInput, ActivityIndicator,
+  Platform, Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, formatRupiah } from '../utils/theme';
 import { produkAPI, kategoriAPI, keuanganAPI, anggotaAPI } from '../services/api';
 
+// Try to import NFC
+let NfcManager = null;
+let NfcTech = null;
+let Ndef = null;
+let nfcAvailable = false;
+
+try {
+  const nfc = require('react-native-nfc-manager');
+  NfcManager = nfc.default;
+  NfcTech = nfc.NfcTech;
+  Ndef = nfc.Ndef;
+  nfcAvailable = true;
+} catch (e) {
+  console.log('NFC not available');
+}
+
 export default function POSScreen({ route, navigation }) {
   const [kategoriList, setKategoriList] = useState([]);
   const [produkList, setProdukList] = useState([]);
-  const [selectedKategori, setSelectedKategori] = useState(null);
+  const [selectedKategori, setSelectedKategori] = useState('all'); // Changed from null to 'all'
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,13 +41,43 @@ export default function POSScreen({ route, navigation }) {
   const [showTapModal, setShowTapModal] = useState(false);
   const [tapInput, setTapInput] = useState('');
   const [tapAnggota, setTapAnggota] = useState(null);
-  const [tapStep, setTapStep] = useState(1); // 1: input, 2: confirm, 3: success
+  const [tapStep, setTapStep] = useState(1); // 1: input/scan, 2: confirm, 3: success
   const [tapLoading, setTapLoading] = useState(false);
   const [tapResult, setTapResult] = useState(null);
+  const [nfcScanning, setNfcScanning] = useState(false);
+  const [nfcSupported, setNfcSupported] = useState(false);
+  
+  // Pulse animation for NFC
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     loadData();
+    checkNfcSupport();
+    return () => {
+      if (NfcManager) {
+        NfcManager.cancelTechnologyRequest().catch(() => {});
+      }
+    };
   }, []);
+
+  const checkNfcSupport = async () => {
+    if (!NfcManager) {
+      setNfcSupported(false);
+      return;
+    }
+    try {
+      const supported = await NfcManager.isSupported();
+      setNfcSupported(supported);
+      if (supported) {
+        await NfcManager.start();
+        const enabled = await NfcManager.isEnabled();
+        setNfcSupported(enabled); // Only show NFC button if enabled
+      }
+    } catch (e) {
+      console.log('NFC check error:', e);
+      setNfcSupported(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -49,9 +96,9 @@ export default function POSScreen({ route, navigation }) {
     setLoading(false);
   };
 
-  // Filter products
+  // Filter products - Fixed to use 'all' instead of null
   const filteredProducts = produkList.filter(p => {
-    const matchKategori = !selectedKategori || p.kategori_id === selectedKategori;
+    const matchKategori = selectedKategori === 'all' || p.kategori_id === selectedKategori;
     const matchSearch = !searchQuery || 
       p.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.kode.toLowerCase().includes(searchQuery.toLowerCase());
@@ -140,6 +187,22 @@ export default function POSScreen({ route, navigation }) {
     ]);
   };
 
+  // Start pulse animation
+  const startPulse = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.2, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  };
+
+  // Stop pulse animation
+  const stopPulse = () => {
+    pulseAnim.stopAnimation();
+    pulseAnim.setValue(1);
+  };
+
   // TAP payment flow
   const openTapModal = () => {
     if (cart.length === 0) {
@@ -151,13 +214,87 @@ export default function POSScreen({ route, navigation }) {
     setTapInput('');
     setTapAnggota(null);
     setTapResult(null);
+    setNfcScanning(false);
   };
 
-  const handleTapSearch = async () => {
-    if (!tapInput.trim()) return;
+  // Start NFC scanning - sama dengan ScanNFCScreen
+  const startNfcScan = async () => {
+    if (!NfcManager || !nfcSupported) {
+      Alert.alert('NFC Tidak Tersedia', 'Perangkat ini tidak mendukung NFC atau NFC tidak aktif');
+      return;
+    }
+
+    setNfcScanning(true);
+    startPulse();
+
+    try {
+      // Sama dengan ScanNFCScreen - pakai NfcTech.Ndef dan NfcTech.NfcA
+      await NfcManager.requestTechnology([NfcTech.Ndef, NfcTech.NfcA]);
+      const tag = await NfcManager.getTag();
+      
+      if (!tag) {
+        Alert.alert('Error', 'Tidak bisa membaca kartu');
+        return;
+      }
+
+      let scanData = null;
+
+      // Try NDEF first (MiLi Card URL)
+      if (tag.ndefMessage && tag.ndefMessage.length > 0) {
+        for (const record of tag.ndefMessage) {
+          if (Ndef && record.payload) {
+            try {
+              const text = Ndef.text.decodePayload(record.payload);
+              if (text) { scanData = text; break; }
+            } catch (e) {}
+            try {
+              const uri = Ndef.uri.decodePayload(record.payload);
+              if (uri) { scanData = uri; break; }
+            } catch (e) {}
+          }
+        }
+      }
+
+      // Fallback to NFC UID
+      if (!scanData && tag.id) {
+        scanData = tag.id.toUpperCase();
+      }
+
+      if (scanData) {
+        console.log('[NFC] MiLi Card data:', scanData);
+        setTapInput(scanData);
+        // Auto search after NFC read
+        await handleTapSearchWithUID(scanData);
+      } else {
+        Alert.alert('Error', 'Kartu terdeteksi tapi data tidak terbaca');
+      }
+    } catch (e) {
+      console.log('NFC Error:', e);
+      if (e.message !== 'cancelled') {
+        Alert.alert('NFC Error', 'Gagal membaca kartu. Coba lagi.');
+      }
+    } finally {
+      setNfcScanning(false);
+      stopPulse();
+      try { await NfcManager.cancelTechnologyRequest(); } catch (e) {}
+    }
+  };
+
+  // Stop NFC scanning
+  const stopNfcScan = async () => {
+    setNfcScanning(false);
+    stopPulse();
+    try { 
+      if (NfcManager) await NfcManager.cancelTechnologyRequest(); 
+    } catch (e) {}
+  };
+
+  // Handle search with UID (from NFC)
+  const handleTapSearchWithUID = async (uid) => {
+    if (!uid.trim()) return;
     setTapLoading(true);
     try {
-      const res = await keuanganAPI.pembayaranTap(tapInput, [], 'NFC');
+      const res = await keuanganAPI.pembayaranTap(uid, [], 'NFC');
       if (res.success && res.data.ready_to_pay) {
         setTapAnggota(res.data.anggota);
         setTapStep(2);
@@ -168,6 +305,10 @@ export default function POSScreen({ route, navigation }) {
       Alert.alert('Error', e.response?.data?.message || 'Kartu tidak ditemukan');
     }
     setTapLoading(false);
+  };
+
+  const handleTapSearch = async () => {
+    await handleTapSearchWithUID(tapInput);
   };
 
   const handleTapConfirm = async () => {
@@ -195,6 +336,7 @@ export default function POSScreen({ route, navigation }) {
   };
 
   const closeTapModal = () => {
+    stopNfcScan();
     setShowTapModal(false);
     if (tapStep === 3) {
       setCart([]);
@@ -240,23 +382,38 @@ export default function POSScreen({ route, navigation }) {
       {/* Categories */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryBar}>
         <TouchableOpacity 
-          style={[styles.categoryChip, !selectedKategori && styles.categoryChipActive]}
-          onPress={() => setSelectedKategori(null)}
+          style={[
+            styles.categoryChip, 
+            selectedKategori === 'all' && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+          ]}
+          onPress={() => setSelectedKategori('all')}
         >
-          <Ionicons name="grid" size={16} color={!selectedKategori ? COLORS.bgDark : COLORS.textSecondary} />
-          <Text style={[styles.categoryText, !selectedKategori && styles.categoryTextActive]}>Semua</Text>
+          <Ionicons name="grid" size={16} color={selectedKategori === 'all' ? '#1a2332' : '#e8e4d9'} />
+          <Text style={[
+            styles.categoryText, 
+            { color: selectedKategori === 'all' ? '#1a2332' : '#e8e4d9' }
+          ]}>Semua</Text>
         </TouchableOpacity>
-        {kategoriList.map(k => (
-          <TouchableOpacity 
-            key={k.id}
-            style={[styles.categoryChip, selectedKategori === k.id && styles.categoryChipActive]}
-            onPress={() => setSelectedKategori(k.id)}
-          >
-            <Text style={[styles.categoryText, selectedKategori === k.id && styles.categoryTextActive]}>
-              {k.nama}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {kategoriList.map(k => {
+          const isActive = selectedKategori === k.id;
+          return (
+            <TouchableOpacity 
+              key={k.id}
+              style={[
+                styles.categoryChip, 
+                isActive && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+              ]}
+              onPress={() => setSelectedKategori(k.id)}
+            >
+              <Text style={[
+                styles.categoryText, 
+                { color: isActive ? '#1a2332' : '#e8e4d9' }
+              ]}>
+                {k.nama}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       {/* Search */}
@@ -280,12 +437,11 @@ export default function POSScreen({ route, navigation }) {
       {/* Products */}
       <FlatList
         data={filteredProducts}
+        keyExtractor={item => item.id.toString()}
         renderItem={renderProduct}
-        keyExtractor={item => String(item.id)}
         numColumns={2}
         columnWrapperStyle={styles.productRow}
         contentContainerStyle={styles.productList}
-        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="cube-outline" size={48} color={COLORS.textMuted} />
@@ -294,19 +450,20 @@ export default function POSScreen({ route, navigation }) {
         }
       />
 
-      {/* Cart Summary */}
+      {/* Cart Bar */}
       {cart.length > 0 && (
         <View style={styles.cartBar}>
           <TouchableOpacity style={styles.cartClearBtn} onPress={clearCart}>
-            <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+            <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
           </TouchableOpacity>
           <View style={styles.cartInfo}>
             <Text style={styles.cartCount}>{cartCount} item</Text>
             <Text style={styles.cartTotal}>{formatRupiah(cartTotal)}</Text>
           </View>
           <TouchableOpacity 
-            style={[styles.cartPayBtn, !selectedAnggota && styles.cartPayBtnDisabled]} 
+            style={[styles.cartPayBtn, !selectedAnggota && styles.cartPayBtnDisabled]}
             onPress={handleManualPayment}
+            disabled={!selectedAnggota}
           >
             <Ionicons name="checkmark-circle" size={20} color={COLORS.bgDark} />
             <Text style={styles.cartPayText}>Bayar</Text>
@@ -314,24 +471,21 @@ export default function POSScreen({ route, navigation }) {
         </View>
       )}
 
-      {/* Member Picker */}
+      {/* Member Picker Bar */}
       <TouchableOpacity style={styles.memberPicker} onPress={() => setShowAnggotaPicker(true)}>
+        <Ionicons name="person-add" size={20} color={COLORS.accent} />
         {selectedAnggota ? (
           <>
-            <Ionicons name="person" size={18} color={COLORS.accent} />
             <Text style={styles.memberName}>{selectedAnggota.nama}</Text>
             <Text style={styles.memberSaldo}>{formatRupiah(selectedAnggota.saldo)}</Text>
           </>
         ) : (
-          <>
-            <Ionicons name="person-add" size={18} color={COLORS.textMuted} />
-            <Text style={styles.memberPlaceholder}>Pilih Anggota</Text>
-          </>
+          <Text style={styles.memberPlaceholder}>Pilih Anggota</Text>
         )}
-        <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
+        <Ionicons name="chevron-down" size={18} color={COLORS.textMuted} />
       </TouchableOpacity>
 
-      {/* Anggota Picker Modal */}
+      {/* Member Picker Modal */}
       <Modal visible={showAnggotaPicker} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -361,17 +515,51 @@ export default function POSScreen({ route, navigation }) {
         </View>
       </Modal>
 
-      {/* TAP Payment Modal */}
+      {/* TAP Payment Modal - WITH NFC SCAN */}
       <Modal visible={showTapModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.tapModalContent}>
             {tapStep === 1 && (
               <>
-                <View style={styles.tapIconWrap}>
+                <Animated.View style={[
+                  styles.tapIconWrap,
+                  nfcScanning && { transform: [{ scale: pulseAnim }] }
+                ]}>
                   <Ionicons name="card" size={48} color={COLORS.bgDark} />
-                </View>
+                </Animated.View>
                 <Text style={styles.tapTitle}>Tempelkan Kartu</Text>
                 <Text style={styles.tapSubtitle}>Scan NFC atau masukkan ID kartu</Text>
+                
+                {/* NFC Scan Button */}
+                {nfcSupported && (
+                  <TouchableOpacity 
+                    style={[styles.nfcScanBtn, nfcScanning && styles.nfcScanBtnActive]} 
+                    onPress={nfcScanning ? stopNfcScan : startNfcScan}
+                  >
+                    <Ionicons 
+                      name={nfcScanning ? "close-circle" : "wifi"} 
+                      size={24} 
+                      color={nfcScanning ? COLORS.danger : COLORS.accent} 
+                    />
+                    <Text style={[styles.nfcScanText, nfcScanning && styles.nfcScanTextActive]}>
+                      {nfcScanning ? 'Batal Scan' : 'Scan NFC'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {nfcScanning && (
+                  <View style={styles.nfcScanningIndicator}>
+                    <ActivityIndicator size="small" color={COLORS.accent} />
+                    <Text style={styles.nfcScanningText}>Menunggu kartu NFC...</Text>
+                  </View>
+                )}
+                
+                <View style={styles.tapDivider}>
+                  <View style={styles.tapDividerLine} />
+                  <Text style={styles.tapDividerText}>atau</Text>
+                  <View style={styles.tapDividerLine} />
+                </View>
+
                 <View style={styles.tapInputRow}>
                   <TextInput
                     style={styles.tapInput}
@@ -380,7 +568,6 @@ export default function POSScreen({ route, navigation }) {
                     value={tapInput}
                     onChangeText={setTapInput}
                     onSubmitEditing={handleTapSearch}
-                    autoFocus
                   />
                   <TouchableOpacity style={styles.tapSearchBtn} onPress={handleTapSearch} disabled={tapLoading}>
                     {tapLoading ? (
@@ -466,17 +653,23 @@ const styles = StyleSheet.create({
   
   // Categories
   categoryBar: { 
-    flexGrow: 0, paddingHorizontal: SIZES.padding, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    flexGrow: 0,
+    flexShrink: 0, // Prevent shrinking
+    height: 56, // Fixed height
+    paddingHorizontal: SIZES.padding, 
+    paddingVertical: 12,
+    borderBottomWidth: 1, 
+    borderBottomColor: COLORS.border,
   },
   categoryChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
     backgroundColor: COLORS.bgCard, borderRadius: 20,
     borderWidth: 1, borderColor: COLORS.border,
+    height: 36, // Fixed chip height
   },
   categoryChipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  categoryText: { color: COLORS.textSecondary, fontSize: SIZES.sm },
+  categoryText: { color: COLORS.textPrimary, fontSize: SIZES.sm, fontWeight: '500' },
   categoryTextActive: { color: COLORS.bgDark, fontWeight: '600' },
 
   // Search
@@ -583,6 +776,31 @@ const styles = StyleSheet.create({
   tapTitle: { fontSize: SIZES.xl, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 4 },
   tapSubtitle: { fontSize: SIZES.md, color: COLORS.textMuted, marginBottom: 20 },
   tapSaldo: { fontSize: 28, fontWeight: '700', color: COLORS.accent, marginBottom: 20 },
+  
+  // NFC Scan Button
+  nfcScanBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: COLORS.accent + '20', borderRadius: 16,
+    paddingVertical: 16, paddingHorizontal: 32, marginBottom: 16,
+    borderWidth: 2, borderColor: COLORS.accent,
+  },
+  nfcScanBtnActive: {
+    backgroundColor: COLORS.danger + '20', borderColor: COLORS.danger,
+  },
+  nfcScanText: { fontSize: SIZES.lg, fontWeight: '700', color: COLORS.accent },
+  nfcScanTextActive: { color: COLORS.danger },
+  nfcScanningIndicator: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16,
+  },
+  nfcScanningText: { color: COLORS.accent, fontSize: SIZES.sm },
+  
+  // Divider
+  tapDivider: {
+    flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: 16,
+  },
+  tapDividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
+  tapDividerText: { paddingHorizontal: 12, color: COLORS.textMuted, fontSize: SIZES.sm },
+  
   tapInputRow: { flexDirection: 'row', gap: 10, width: '100%', marginBottom: 16 },
   tapInput: {
     flex: 1, backgroundColor: COLORS.bgSecondary, borderRadius: 12, 
