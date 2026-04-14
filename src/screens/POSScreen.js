@@ -4,6 +4,7 @@ import {
   ScrollView, FlatList, Modal, TextInput, ActivityIndicator,
   Platform, Animated
 } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, formatRupiah } from '../utils/theme';
 import { produkAPI, kategoriAPI, keuanganAPI, anggotaAPI } from '../services/api';
@@ -49,6 +50,11 @@ export default function POSScreen({ route, navigation }) {
   
   // Pulse animation for NFC
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // QR Scanner states
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [qrScanned, setQrScanned] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -215,6 +221,8 @@ export default function POSScreen({ route, navigation }) {
     setTapAnggota(null);
     setTapResult(null);
     setNfcScanning(false);
+    setShowQRScanner(false);
+    setQrScanned(false);
   };
 
   // Start NFC scanning - sama dengan ScanNFCScreen
@@ -338,10 +346,28 @@ export default function POSScreen({ route, navigation }) {
   const closeTapModal = () => {
     stopNfcScan();
     setShowTapModal(false);
+    setShowQRScanner(false);
     if (tapStep === 3) {
       setCart([]);
       loadData();
     }
+  };
+
+  // QR Code scan handler
+  const handleQRScanned = async ({ data }) => {
+    if (qrScanned) return;
+    setQrScanned(true);
+    
+    let cardId = data;
+    // Extract card ID from URL if needed
+    if (data.includes('mfrscode.com') || data.includes('mfrcode.com')) {
+      const match = data.match(/[KS][PC]-\d{4}-\d{3}/);
+      if (match) cardId = match[0];
+    }
+    
+    setTapInput(cardId);
+    setShowQRScanner(false);
+    await handleTapSearchWithUID(cardId);
   };
 
   // Render product item
@@ -519,7 +545,7 @@ export default function POSScreen({ route, navigation }) {
       <Modal visible={showTapModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.tapModalContent}>
-            {tapStep === 1 && (
+            {tapStep === 1 && !showQRScanner && (
               <>
                 <Animated.View style={[
                   styles.tapIconWrap,
@@ -528,7 +554,7 @@ export default function POSScreen({ route, navigation }) {
                   <Ionicons name="card" size={48} color={COLORS.bgDark} />
                 </Animated.View>
                 <Text style={styles.tapTitle}>Tempelkan Kartu</Text>
-                <Text style={styles.tapSubtitle}>Scan NFC atau masukkan ID kartu</Text>
+                <Text style={styles.tapSubtitle}>Scan NFC atau QR Code Smart Card</Text>
                 
                 {/* NFC Scan Button */}
                 {nfcSupported && (
@@ -537,26 +563,32 @@ export default function POSScreen({ route, navigation }) {
                     onPress={nfcScanning ? stopNfcScan : startNfcScan}
                   >
                     <Ionicons 
-                      name={nfcScanning ? "close-circle" : "wifi"} 
+                      name={nfcScanning ? "radio" : "wifi"} 
                       size={24} 
                       color={nfcScanning ? COLORS.danger : COLORS.accent} 
                     />
                     <Text style={[styles.nfcScanText, nfcScanning && styles.nfcScanTextActive]}>
-                      {nfcScanning ? 'Batal Scan' : 'Scan NFC'}
+                      {nfcScanning ? 'Menunggu Kartu...' : 'Scan NFC'}
                     </Text>
                   </TouchableOpacity>
                 )}
 
-                {nfcScanning && (
-                  <View style={styles.nfcScanningIndicator}>
-                    <ActivityIndicator size="small" color={COLORS.accent} />
-                    <Text style={styles.nfcScanningText}>Menunggu kartu NFC...</Text>
-                  </View>
-                )}
+                {/* QR Scan Button */}
+                <TouchableOpacity 
+                  style={styles.qrScanBtn}
+                  onPress={() => {
+                    stopNfcScan();
+                    setShowQRScanner(true);
+                    setQrScanned(false);
+                  }}
+                >
+                  <Ionicons name="qr-code" size={24} color={COLORS.accent} />
+                  <Text style={styles.qrScanText}>Scan QR Code</Text>
+                </TouchableOpacity>
                 
                 <View style={styles.tapDivider}>
                   <View style={styles.tapDividerLine} />
-                  <Text style={styles.tapDividerText}>atau</Text>
+                  <Text style={styles.tapDividerText}>ATAU INPUT MANUAL</Text>
                   <View style={styles.tapDividerLine} />
                 </View>
 
@@ -579,6 +611,48 @@ export default function POSScreen({ route, navigation }) {
                 </View>
                 <TouchableOpacity style={styles.tapCancelBtn} onPress={closeTapModal}>
                   <Text style={styles.tapCancelText}>Batal</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* QR Scanner View */}
+            {tapStep === 1 && showQRScanner && (
+              <>
+                <Text style={styles.tapTitle}>Scan QR Code</Text>
+                <Text style={styles.tapSubtitle}>Arahkan kamera ke QR Code Smart Card</Text>
+                
+                {permission?.granted ? (
+                  <View style={styles.qrCameraContainer}>
+                    <CameraView
+                      style={styles.qrCamera}
+                      barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                      onBarcodeScanned={qrScanned ? undefined : handleQRScanned}
+                    >
+                      <View style={styles.qrOverlay}>
+                        <View style={styles.qrFrame}>
+                          <View style={[styles.qrCorner, styles.topLeft]} />
+                          <View style={[styles.qrCorner, styles.topRight]} />
+                          <View style={[styles.qrCorner, styles.bottomLeft]} />
+                          <View style={[styles.qrCorner, styles.bottomRight]} />
+                        </View>
+                      </View>
+                    </CameraView>
+                  </View>
+                ) : (
+                  <View style={styles.permissionBox}>
+                    <Ionicons name="camera-outline" size={48} color={COLORS.textMuted} />
+                    <Text style={styles.permissionText}>Izin kamera diperlukan</Text>
+                    <TouchableOpacity style={styles.permissionBtn} onPress={requestPermission}>
+                      <Text style={styles.permissionBtnText}>Izinkan Kamera</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                <TouchableOpacity 
+                  style={styles.tapCancelBtn} 
+                  onPress={() => setShowQRScanner(false)}
+                >
+                  <Text style={styles.tapCancelText}>Kembali</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -832,4 +906,42 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239,68,68,0.15)', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12,
   },
   tapInsufficientText: { color: COLORS.danger, fontWeight: '600' },
+  
+  // QR Scan Button
+  qrScanBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: COLORS.primary + '40', borderRadius: 16,
+    paddingVertical: 16, paddingHorizontal: 32, marginBottom: 16,
+    borderWidth: 2, borderColor: COLORS.primary, width: '100%',
+    justifyContent: 'center',
+  },
+  qrScanText: { fontSize: SIZES.lg, fontWeight: '700', color: COLORS.accent },
+  
+  // QR Camera
+  qrCameraContainer: {
+    width: '100%', height: 250, borderRadius: 16, overflow: 'hidden',
+    marginBottom: 16,
+  },
+  qrCamera: { flex: 1 },
+  qrOverlay: { 
+    flex: 1, alignItems: 'center', justifyContent: 'center', 
+    backgroundColor: 'rgba(0,0,0,0.3)' 
+  },
+  qrFrame: { width: 180, height: 180, position: 'relative' },
+  qrCorner: { position: 'absolute', width: 25, height: 25, borderColor: COLORS.accent },
+  topLeft: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3 },
+  topRight: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3 },
+  bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3 },
+  bottomRight: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3 },
+  
+  // Permission box
+  permissionBox: {
+    alignItems: 'center', padding: 24, marginBottom: 16,
+  },
+  permissionText: { color: COLORS.textMuted, marginTop: 12, marginBottom: 16 },
+  permissionBtn: {
+    backgroundColor: COLORS.accent, paddingHorizontal: 20, paddingVertical: 10,
+    borderRadius: 10,
+  },
+  permissionBtnText: { color: COLORS.bgDark, fontWeight: '700' },
 });

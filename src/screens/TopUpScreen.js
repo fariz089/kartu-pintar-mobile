@@ -1,11 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, 
-  ScrollView, Modal, ActivityIndicator 
+  ScrollView, Modal, ActivityIndicator, Animated, Platform
 } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, formatRupiah } from '../utils/theme';
 import { anggotaAPI, keuanganAPI } from '../services/api';
+
+// Try to import NFC
+let NfcManager = null;
+let NfcTech = null;
+let Ndef = null;
+let nfcAvailable = false;
+
+try {
+  const nfc = require('react-native-nfc-manager');
+  NfcManager = nfc.default;
+  NfcTech = nfc.NfcTech;
+  Ndef = nfc.Ndef;
+  nfcAvailable = true;
+} catch (e) {
+  console.log('NFC not available');
+}
 
 export default function TopUpScreen({ navigation }) {
   const [anggotaList, setAnggotaList] = useState([]);
@@ -22,8 +39,47 @@ export default function TopUpScreen({ navigation }) {
   const [tapStep, setTapStep] = useState(1); // 1: scan, 2: enter nominal, 3: success
   const [tapLoading, setTapLoading] = useState(false);
   const [tapResult, setTapResult] = useState(null);
+  
+  // NFC states
+  const [nfcSupported, setNfcSupported] = useState(false);
+  const [nfcScanning, setNfcScanning] = useState(false);
+  
+  // QR states
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [qrScanned, setQrScanned] = useState(false);
+  
+  // Pulse animation
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => { loadAnggota(); }, []);
+  useEffect(() => { 
+    loadAnggota(); 
+    checkNfcSupport();
+    return () => {
+      if (NfcManager) {
+        NfcManager.cancelTechnologyRequest().catch(() => {});
+      }
+    };
+  }, []);
+
+  const checkNfcSupport = async () => {
+    if (!NfcManager) {
+      setNfcSupported(false);
+      return;
+    }
+    try {
+      const supported = await NfcManager.isSupported();
+      setNfcSupported(supported);
+      if (supported) {
+        await NfcManager.start();
+        const enabled = await NfcManager.isEnabled();
+        setNfcSupported(enabled);
+      }
+    } catch (e) {
+      console.log('NFC check error:', e);
+      setNfcSupported(false);
+    }
+  };
 
   const loadAnggota = async () => {
     try {
@@ -60,6 +116,21 @@ export default function TopUpScreen({ navigation }) {
     ]);
   };
 
+  // Pulse animation
+  const startPulse = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.2, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  };
+
+  const stopPulse = () => {
+    pulseAnim.stopAnimation();
+    pulseAnim.setValue(1);
+  };
+
   // TAP Modal functions
   const openTapModal = () => {
     setShowTapModal(true);
@@ -68,20 +139,103 @@ export default function TopUpScreen({ navigation }) {
     setTapAnggota(null);
     setTapNominal('');
     setTapResult(null);
+    setShowQRScanner(false);
+    setQrScanned(false);
   };
 
   const closeTapModal = () => {
     setShowTapModal(false);
+    setShowQRScanner(false);
+    stopNfcScan();
     if (tapStep === 3) {
       loadAnggota();
     }
   };
 
-  const handleTapSearch = async () => {
-    if (!tapInput.trim()) return;
+  // NFC Scan
+  const startNfcScan = async () => {
+    if (!NfcManager || !nfcSupported) {
+      Alert.alert('NFC Tidak Tersedia', 'Perangkat tidak mendukung NFC atau NFC tidak aktif');
+      return;
+    }
+
+    setNfcScanning(true);
+    startPulse();
+
+    try {
+      await NfcManager.requestTechnology(NfcTech.Ndef);
+      const tag = await NfcManager.getTag();
+      
+      if (tag) {
+        let cardId = null;
+        
+        // Try to read NDEF message
+        if (tag.ndefMessage && tag.ndefMessage.length > 0) {
+          const ndefRecord = tag.ndefMessage[0];
+          if (ndefRecord.payload) {
+            const text = Ndef.text.decodePayload(new Uint8Array(ndefRecord.payload));
+            if (text.includes('KP-') || text.includes('SC-')) {
+              cardId = text;
+            } else if (text.includes('mfrscode.com')) {
+              const match = text.match(/[KS][PC]-\d{4}-\d{3}/);
+              if (match) cardId = match[0];
+            }
+          }
+        }
+        
+        // Fallback to tag ID
+        if (!cardId && tag.id) {
+          cardId = tag.id;
+        }
+
+        if (cardId) {
+          setTapInput(cardId);
+          await processCardId(cardId);
+        }
+      }
+    } catch (e) {
+      if (e.message !== 'cancelled') {
+        console.log('NFC error:', e);
+      }
+    } finally {
+      NfcManager.cancelTechnologyRequest().catch(() => {});
+      setNfcScanning(false);
+      stopPulse();
+    }
+  };
+
+  const stopNfcScan = async () => {
+    if (NfcManager) {
+      try {
+        await NfcManager.cancelTechnologyRequest();
+      } catch (e) {}
+    }
+    setNfcScanning(false);
+    stopPulse();
+  };
+
+  // QR Scan
+  const handleQRScanned = async ({ data }) => {
+    if (qrScanned) return;
+    setQrScanned(true);
+    
+    let cardId = data;
+    // Extract card ID from URL if needed
+    if (data.includes('mfrscode.com') || data.includes('mfrcode.com')) {
+      const match = data.match(/[KS][PC]-\d{4}-\d{3}/);
+      if (match) cardId = match[0];
+    }
+    
+    setTapInput(cardId);
+    setShowQRScanner(false);
+    await processCardId(cardId);
+  };
+
+  // Process card ID (common for NFC and QR)
+  const processCardId = async (cardId) => {
     setTapLoading(true);
     try {
-      const res = await keuanganAPI.topupTap(tapInput, 0, 'NFC');
+      const res = await keuanganAPI.topupTap(cardId, 0, 'TAP');
       if (res.success && res.data.ready_to_topup) {
         setTapAnggota(res.data.anggota);
         setTapStep(2);
@@ -92,6 +246,11 @@ export default function TopUpScreen({ navigation }) {
       Alert.alert('Error', e.response?.data?.message || 'Kartu tidak ditemukan');
     }
     setTapLoading(false);
+  };
+
+  const handleTapSearch = async () => {
+    if (!tapInput.trim()) return;
+    await processCardId(tapInput.trim());
   };
 
   const handleTapConfirm = async () => {
@@ -107,7 +266,7 @@ export default function TopUpScreen({ navigation }) {
 
     setTapLoading(true);
     try {
-      const res = await keuanganAPI.topupTap(tapInput, amount, 'NFC');
+      const res = await keuanganAPI.topupTap(tapInput, amount, 'TAP');
       if (res.success) {
         setTapResult(res.data);
         setTapStep(3);
@@ -125,7 +284,7 @@ export default function TopUpScreen({ navigation }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: SIZES.padding }}>
       <Text style={styles.title}>Top Up Saldo</Text>
-      <Text style={styles.subtitle}>Isi ulang saldo Kartu Pintar anggota</Text>
+      <Text style={styles.subtitle}>Isi ulang saldo Smart Card anggota</Text>
 
       {/* TAP Button */}
       <TouchableOpacity style={styles.tapCard} onPress={openTapModal}>
@@ -220,20 +379,58 @@ export default function TopUpScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <View style={styles.tapModalContent}>
             
-            {tapStep === 1 && (
+            {tapStep === 1 && !showQRScanner && (
               <>
                 <View style={styles.tapModalIconWrap}>
                   <Ionicons name="card" size={48} color={COLORS.bgDark} />
                 </View>
                 <Text style={styles.tapModalTitle}>Tempelkan Kartu</Text>
                 <Text style={styles.tapModalSubtitle}>
-                  Dekatkan Kartu Pintar ke NFC reader atau scan QR Code
+                  Scan NFC atau QR Code Smart Card
                 </Text>
+                
+                {/* NFC Scan Button */}
+                {nfcSupported && (
+                  <TouchableOpacity 
+                    style={[styles.nfcScanBtn, nfcScanning && styles.nfcScanBtnActive]}
+                    onPress={nfcScanning ? stopNfcScan : startNfcScan}
+                  >
+                    <Animated.View style={{ transform: [{ scale: nfcScanning ? pulseAnim : 1 }] }}>
+                      <Ionicons 
+                        name={nfcScanning ? "radio" : "wifi"} 
+                        size={24} 
+                        color={nfcScanning ? COLORS.danger : COLORS.accent} 
+                      />
+                    </Animated.View>
+                    <Text style={[styles.nfcScanText, nfcScanning && styles.nfcScanTextActive]}>
+                      {nfcScanning ? 'Menunggu Kartu...' : 'Scan NFC'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* QR Scan Button */}
+                <TouchableOpacity 
+                  style={styles.qrScanBtn}
+                  onPress={() => {
+                    stopNfcScan();
+                    setShowQRScanner(true);
+                    setQrScanned(false);
+                  }}
+                >
+                  <Ionicons name="qr-code" size={24} color={COLORS.accent} />
+                  <Text style={styles.qrScanText}>Scan QR Code</Text>
+                </TouchableOpacity>
+
+                <View style={styles.tapDivider}>
+                  <View style={styles.tapDividerLine} />
+                  <Text style={styles.tapDividerText}>ATAU INPUT MANUAL</Text>
+                  <View style={styles.tapDividerLine} />
+                </View>
                 
                 <View style={styles.tapInputRow}>
                   <TextInput 
                     style={styles.tapInputField}
-                    placeholder="Scan / Input UID"
+                    placeholder="Masukkan ID Kartu"
                     placeholderTextColor={COLORS.textMuted}
                     value={tapInput}
                     onChangeText={setTapInput}
@@ -251,6 +448,48 @@ export default function TopUpScreen({ navigation }) {
                 
                 <TouchableOpacity style={styles.tapCancelBtn} onPress={closeTapModal}>
                   <Text style={styles.tapCancelText}>Batal</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* QR Scanner View */}
+            {tapStep === 1 && showQRScanner && (
+              <>
+                <Text style={styles.tapModalTitle}>Scan QR Code</Text>
+                <Text style={styles.tapModalSubtitle}>Arahkan kamera ke QR Code Smart Card</Text>
+                
+                {permission?.granted ? (
+                  <View style={styles.qrCameraContainer}>
+                    <CameraView
+                      style={styles.qrCamera}
+                      barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                      onBarcodeScanned={qrScanned ? undefined : handleQRScanned}
+                    >
+                      <View style={styles.qrOverlay}>
+                        <View style={styles.qrFrame}>
+                          <View style={[styles.qrCorner, styles.topLeft]} />
+                          <View style={[styles.qrCorner, styles.topRight]} />
+                          <View style={[styles.qrCorner, styles.bottomLeft]} />
+                          <View style={[styles.qrCorner, styles.bottomRight]} />
+                        </View>
+                      </View>
+                    </CameraView>
+                  </View>
+                ) : (
+                  <View style={styles.permissionBox}>
+                    <Ionicons name="camera-outline" size={48} color={COLORS.textMuted} />
+                    <Text style={styles.permissionText}>Izin kamera diperlukan</Text>
+                    <TouchableOpacity style={styles.permissionBtn} onPress={requestPermission}>
+                      <Text style={styles.permissionBtnText}>Izinkan Kamera</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                <TouchableOpacity 
+                  style={styles.tapCancelBtn} 
+                  onPress={() => setShowQRScanner(false)}
+                >
+                  <Text style={styles.tapCancelText}>Kembali</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -435,11 +674,71 @@ const styles = StyleSheet.create({
     fontSize: SIZES.md, color: COLORS.textMuted, textAlign: 'center',
     marginBottom: 20 
   },
+  
+  // NFC Scan Button
+  nfcScanBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: COLORS.accent + '20', borderRadius: 16,
+    paddingVertical: 16, paddingHorizontal: 32, marginBottom: 12,
+    borderWidth: 2, borderColor: COLORS.accent, width: '100%',
+    justifyContent: 'center',
+  },
+  nfcScanBtnActive: {
+    backgroundColor: COLORS.danger + '20', borderColor: COLORS.danger,
+  },
+  nfcScanText: { fontSize: SIZES.lg, fontWeight: '700', color: COLORS.accent },
+  nfcScanTextActive: { color: COLORS.danger },
+  
+  // QR Scan Button
+  qrScanBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: COLORS.primary + '40', borderRadius: 16,
+    paddingVertical: 16, paddingHorizontal: 32, marginBottom: 16,
+    borderWidth: 2, borderColor: COLORS.primary, width: '100%',
+    justifyContent: 'center',
+  },
+  qrScanText: { fontSize: SIZES.lg, fontWeight: '700', color: COLORS.accent },
+  
+  // QR Camera
+  qrCameraContainer: {
+    width: '100%', height: 250, borderRadius: 16, overflow: 'hidden',
+    marginBottom: 16,
+  },
+  qrCamera: { flex: 1 },
+  qrOverlay: { 
+    flex: 1, alignItems: 'center', justifyContent: 'center', 
+    backgroundColor: 'rgba(0,0,0,0.3)' 
+  },
+  qrFrame: { width: 180, height: 180, position: 'relative' },
+  qrCorner: { position: 'absolute', width: 25, height: 25, borderColor: COLORS.accent },
+  topLeft: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3 },
+  topRight: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3 },
+  bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3 },
+  bottomRight: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3 },
+  
+  // Permission box
+  permissionBox: {
+    alignItems: 'center', padding: 24, marginBottom: 16,
+  },
+  permissionText: { color: COLORS.textMuted, marginTop: 12, marginBottom: 16 },
+  permissionBtn: {
+    backgroundColor: COLORS.accent, paddingHorizontal: 20, paddingVertical: 10,
+    borderRadius: 10,
+  },
+  permissionBtnText: { color: COLORS.bgDark, fontWeight: '700' },
+  
+  // Divider in modal
+  tapDivider: {
+    flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: 16,
+  },
+  tapDividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
+  tapDividerText: { paddingHorizontal: 12, color: COLORS.textMuted, fontSize: SIZES.xs },
+  
   tapInputRow: { 
     flexDirection: 'row', gap: 10, width: '100%', marginBottom: 16 
   },
   tapInputField: {
-    flex: 1, backgroundColor: COLORS.bgSecondary, borderRadius: 12, 
+    flex: 1, backgroundColor: COLORS.bgInput, borderRadius: 12, 
     paddingHorizontal: 16, paddingVertical: 14, color: COLORS.textPrimary,
     fontSize: SIZES.md, borderWidth: 1, borderColor: COLORS.border,
   },
@@ -448,12 +747,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   tapCancelBtn: {
-    backgroundColor: COLORS.bgSecondary, borderRadius: 12, paddingVertical: 14,
+    backgroundColor: COLORS.bgInput, borderRadius: 12, paddingVertical: 14,
     paddingHorizontal: 40, marginTop: 12,
   },
   tapCancelText: { color: COLORS.textSecondary, fontWeight: '600' },
   tapSaldoBox: {
-    backgroundColor: COLORS.bgSecondary, borderRadius: 12, padding: 16,
+    backgroundColor: COLORS.bgInput, borderRadius: 12, padding: 16,
     width: '100%', alignItems: 'center', marginBottom: 16,
   },
   tapSaldoLabel: { fontSize: SIZES.xs, color: COLORS.textMuted, letterSpacing: 1, marginBottom: 4 },
@@ -463,7 +762,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center', marginBottom: 16 
   },
   tapQuickChip: {
-    backgroundColor: COLORS.bgSecondary, borderRadius: 8, 
+    backgroundColor: COLORS.bgInput, borderRadius: 8, 
     paddingHorizontal: 14, paddingVertical: 10,
     borderWidth: 1, borderColor: COLORS.border,
   },

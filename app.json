@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Kartu Pintar",
-    "slug": "kartu-pintar-mobile",
+    "name": "Smart Card",
+    "slug": "smart-card-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -12,7 +12,7 @@
       "adaptiveIcon": {
         "backgroundColor": "#1a2332"
       },
-      "package": "com.poltekkad.kartupintar",
+      "package": "com.poltekkad.smartcard",
       "permissions": [
         "android.permission.NFC",
         "android.permission.CAMERA",
@@ -28,10 +28,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.poltekkad.kartupintar",
+      "bundleIdentifier": "com.poltekkad.smartcard",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Kartu Pintar membutuhkan akses lokasi untuk melacak kartu",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Kartu Pintar membutuhkan akses lokasi untuk melacak kartu"
+        "NSLocationWhenInUseUsageDescription": "Smart Card membutuhkan akses lokasi untuk melacak kartu",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Smart Card membutuhkan akses lokasi untuk melacak kartu"
       },
       "config": {
         "googleMapsApiKey": "AIzaSyD4SIvrI0g_O9nXgl3AkQkdJ927WqbvBXc"
@@ -41,19 +41,19 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Izinkan Kartu Pintar mengakses kamera untuk scan QR Code"
+          "cameraPermission": "Izinkan Smart Card mengakses kamera untuk scan QR Code"
         }
       ],
       [
         "react-native-nfc-manager",
         {
-          "nfcPermission": "Izinkan Kartu Pintar membaca NFC untuk identifikasi MiLi Card"
+          "nfcPermission": "Izinkan Smart Card membaca NFC untuk identifikasi MiLi Card"
         }
       ],
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Izinkan Kartu Pintar mengakses lokasi untuk pelacakan kartu"
+          "locationAlwaysAndWhenInUsePermission": "Izinkan Smart Card mengakses lokasi untuk pelacakan kartu"
         }
       ]
     ],

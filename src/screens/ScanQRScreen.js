@@ -79,7 +79,7 @@ export default function ScanQRScreen({ navigation }) {
                 <View style={[styles.corner, styles.bottomLeft]} />
                 <View style={[styles.corner, styles.bottomRight]} />
               </View>
-              <Text style={styles.scanText}>Arahkan kamera ke QR Code MiLi Card</Text>
+              <Text style={styles.scanText}>Arahkan kamera ke QR Code Smart Card</Text>
               <Text style={styles.scanSubtext}>Lokasi GPS otomatis ter-record saat scan</Text>
             </View>
           </CameraView>
@@ -97,7 +97,7 @@ export default function ScanQRScreen({ navigation }) {
           <Text style={styles.manualTitle}>Masukkan Kode Manual</Text>
           <TextInput
             style={styles.manualInput}
-            placeholder="Contoh: KP-2025-001 atau URL MiLi"
+            placeholder="Contoh: SC-2025-001 atau URL"
             placeholderTextColor={COLORS.textMuted}
             value={manualCode}
             onChangeText={setManualCode}

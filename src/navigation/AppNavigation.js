@@ -11,7 +11,6 @@ import DashboardScreen from '../screens/DashboardScreen';
 import ScanQRScreen from '../screens/ScanQRScreen';
 import ScanNFCScreen from '../screens/ScanNFCScreen';
 import ScanResultScreen from '../screens/ScanResultScreen';
-import PembayaranScreen from '../screens/PembayaranScreen';
 import POSScreen from '../screens/POSScreen';
 import TopUpScreen from '../screens/TopUpScreen';
 import AnggotaListScreen from '../screens/AnggotaListScreen';
@@ -109,7 +108,6 @@ export default function AppNavigation() {
         <Stack.Screen name="ScanQR" component={ScanQRScreen} options={{ title: 'Scan QR Code' }} />
         <Stack.Screen name="ScanNFC" component={ScanNFCScreen} options={{ title: 'Scan NFC' }} />
         <Stack.Screen name="ScanResult" component={ScanResultScreen} options={{ title: 'Identitas Anggota' }} />
-        <Stack.Screen name="Pembayaran" component={PembayaranScreen} options={{ title: 'Pembayaran' }} />
         <Stack.Screen name="POS" component={POSScreen} options={{ title: 'Point of Sale' }} />
         <Stack.Screen name="TopUp" component={TopUpScreen} options={{ title: 'Top Up Saldo' }} />
         <Stack.Screen name="AnggotaList" component={AnggotaListScreen} options={{ title: 'Data Anggota' }} />

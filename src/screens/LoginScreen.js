@@ -39,7 +39,7 @@ export default function LoginScreen({ navigation }) {
           <View style={styles.logoIcon}>
             <Ionicons name="shield-checkmark" size={48} color={COLORS.accent} />
           </View>
-          <Text style={styles.logoTitle}>KARTU PINTAR</Text>
+          <Text style={styles.logoTitle}>SMART CARD</Text>
           <Text style={styles.logoSubtitle}>POLTEKKAD</Text>
           <Text style={styles.logoDesc}>Sistem Kartu Tanda Anggota Digital</Text>
         </View>

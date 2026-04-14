@@ -1,4 +1,4 @@
-// Kartu Pintar - GPS Location Helper
+// Smart Card - GPS Location Helper
 // Mengambil lokasi GPS HP saat scan NFC/QR untuk tracking kartu
 
 import * as Location from 'expo-location';

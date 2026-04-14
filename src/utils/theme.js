@@ -1,4 +1,4 @@
-// Kartu Pintar - Theme & Constants
+// Smart Card - Theme & Constants
 // Military olive-green + brass/gold dark theme
 
 export const COLORS = {
