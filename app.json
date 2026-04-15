@@ -59,7 +59,9 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Izinkan Smart Card mengakses lokasi untuk pelacakan kartu"
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-font"
     ],
     "owner": "sonta23",
     "extra": {
