@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES } from '../utils/theme';
 import { authAPI } from '../services/api';
@@ -37,7 +37,7 @@ export default function LoginScreen({ navigation }) {
         {/* Logo */}
         <View style={styles.logoContainer}>
           <View style={styles.logoIcon}>
-            <Ionicons name="shield-checkmark" size={48} color={COLORS.accent} />
+            <Image source={require('../../assets/logo.png')} style={styles.logoImage} resizeMode="contain" />
           </View>
           <Text style={styles.logoTitle}>SMART CARD</Text>
           <Text style={styles.logoSubtitle}>POLTEKKAD</Text>
@@ -97,10 +97,11 @@ const styles = StyleSheet.create({
   content: { flex: 1, justifyContent: 'center', paddingHorizontal: 32 },
   logoContainer: { alignItems: 'center', marginBottom: 40 },
   logoIcon: {
-    width: 80, height: 80, borderRadius: 40,
+    width: 100, height: 100, borderRadius: 50,
     backgroundColor: COLORS.bgCard, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 16, borderWidth: 2, borderColor: COLORS.accent,
+    marginBottom: 16, borderWidth: 2, borderColor: COLORS.accent, overflow: 'hidden',
   },
+  logoImage: { width: 80, height: 80 },
   logoTitle: { fontSize: 28, fontWeight: '800', color: COLORS.accent, letterSpacing: 3 },
   logoSubtitle: { fontSize: 14, fontWeight: '600', color: COLORS.primary, letterSpacing: 4, marginTop: 2 },
   logoDesc: { fontSize: 12, color: COLORS.textSecondary, marginTop: 8 },
