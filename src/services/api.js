@@ -4,8 +4,14 @@
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// ⚠️ GANTI INI dengan IP server Flask kamu
-const API_BASE = "http://192.168.18.20:5000";
+// ===========================================
+// API Configuration
+// ===========================================
+// DEVELOPMENT - uncomment untuk testing lokal
+// const API_BASE = "http://192.168.18.20:5000";
+
+// PRODUCTION
+const API_BASE = "https://smartcard.poltekkad.my.id";
 
 const api = axios.create({
   baseURL: API_BASE,
