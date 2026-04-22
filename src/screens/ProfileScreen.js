@@ -170,7 +170,7 @@ export default function ProfileScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.footer}>Smart Card — Poltekkad © 2025</Text>
+      <Text style={styles.footer}>Smart Card — Poltekad © 2025</Text>
       <View style={{ height: 30 }} />
     </ScrollView>
   );

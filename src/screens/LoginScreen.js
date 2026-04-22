@@ -40,7 +40,7 @@ export default function LoginScreen({ navigation }) {
             <Image source={require('../../assets/logo.png')} style={styles.logoImage} resizeMode="contain" />
           </View>
           <Text style={styles.logoTitle}>SMART CARD</Text>
-          <Text style={styles.logoSubtitle}>POLTEKKAD</Text>
+          <Text style={styles.logoSubtitle}>POLTEKAD</Text>
           <Text style={styles.logoDesc}>Sistem Kartu Tanda Anggota Digital</Text>
         </View>
 
@@ -86,7 +86,7 @@ export default function LoginScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>TNI Angkatan Darat — Poltekkad © 2025</Text>
+        <Text style={styles.footer}>TNI Angkatan Darat — Poltekad © 2025</Text>
       </View>
     </KeyboardAvoidingView>
   );

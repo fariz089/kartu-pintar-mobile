@@ -43,7 +43,7 @@ export default function LacakKartuScreen({ navigation }) {
   const mapRef = useRef(null);
   const flatListRef = useRef(null);
 
-  // Default region: Poltekkad Bandung
+  // Default region: Poltekad Bandung
   const [region, setRegion] = useState({
     latitude: -6.8927,
     longitude: 107.6100,
