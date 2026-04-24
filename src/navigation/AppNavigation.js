@@ -16,6 +16,7 @@ import TopUpScreen from '../screens/TopUpScreen';
 import AnggotaListScreen from '../screens/AnggotaListScreen';
 import TransaksiScreen from '../screens/TransaksiScreen';
 import LacakKartuScreen from '../screens/LacakKartuScreen';
+import LocationHistoryScreen from '../screens/LocationHistoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
@@ -113,6 +114,7 @@ export default function AppNavigation() {
         <Stack.Screen name="AnggotaList" component={AnggotaListScreen} options={{ title: 'Data Anggota' }} />
         <Stack.Screen name="Transaksi" component={TransaksiScreen} options={{ title: 'Riwayat Transaksi' }} />
         <Stack.Screen name="LacakKartu" component={LacakKartuScreen} options={{ title: 'Lacak Kartu' }} />
+        <Stack.Screen name="LocationHistory" component={LocationHistoryScreen} options={{ title: 'Riwayat Lokasi', headerShown: false }} />
         <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profil Saya' }} />
       </Stack.Navigator>
     </NavigationContainer>

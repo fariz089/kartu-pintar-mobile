@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, SIZES, formatRupiah } from '../utils/theme';
 import { authAPI } from '../services/api';
-import api from '../services/api';
 
 export default function ProfileScreen({ navigation }) {
   const [user, setUser] = useState(null);
@@ -57,17 +56,14 @@ export default function ProfileScreen({ navigation }) {
     }
     setChangingPw(true);
     try {
-      const res = await api.post('/api/auth/change-password', {
-        old_password: oldPassword,
-        new_password: newPassword,
-      });
-      if (res.data.success) {
+      const res = await authAPI.changePassword(oldPassword, newPassword);
+      if (res.success) {
         Alert.alert('Berhasil', 'Password berhasil diubah');
         setShowChangePassword(false);
         setOldPassword('');
         setNewPassword('');
       } else {
-        Alert.alert('Gagal', res.data.message || 'Gagal mengubah password');
+        Alert.alert('Gagal', res.message || 'Gagal mengubah password');
       }
     } catch (e) {
       Alert.alert('Error', e.response?.data?.message || 'Gagal mengubah password');

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import api from '../services/api';
+import { lacakAPI } from '../services/api';
 
 // ================================================
 // LIGHT MAP STYLE — bright with buildings visible
@@ -52,10 +52,10 @@ export default function LocationHistoryScreen({ route, navigation }) {
 
   const fetchHistory = useCallback(async () => {
     try {
-      const response = await api.get(`/api/riwayat-lokasi/${kartuId}?limit=200`);
-      if (response.data.success) {
-        setAnggotaInfo(response.data.data.anggota);
-        setHistory(response.data.data.history);
+      const res = await lacakAPI.getRiwayatLokasi(kartuId, { limit: 200 });
+      if (res.success) {
+        setAnggotaInfo(res.data.anggota);
+        setHistory(res.data.history);
       }
     } catch (error) {
       Alert.alert('Error', 'Gagal memuat riwayat lokasi');
