@@ -331,6 +331,9 @@ export default function LacakKartuScreen({ navigation }) {
             provider={PROVIDER_GOOGLE}
             initialRegion={region}
             customMapStyle={darkMapStyle}
+            mapType="standard"
+            showsBuildings={true}
+            showsIndoors={true}
             showsUserLocation
             showsMyLocationButton
             showsCompass
