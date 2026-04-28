@@ -126,14 +126,12 @@ export default function AppNavigation() {
         <Stack.Screen name="ScanQR" component={ScanQRScreen} options={{ title: 'Scan QR Code' }} />
         <Stack.Screen name="ScanNFC" component={ScanNFCScreen} options={{ title: 'Scan NFC' }} />
         <Stack.Screen name="ScanResult" component={ScanResultScreen} options={{ title: 'Identitas Anggota' }} />
-        <Stack.Screen name="POS" component={POSScreen} options={{ title: 'Point of Sale' }} />
         <Stack.Screen name="TopUp" component={TopUpScreen} options={{ title: 'Top Up Saldo' }} />
         <Stack.Screen name="AnggotaList" component={AnggotaListScreen} options={{ title: 'Data Anggota' }} />
         <Stack.Screen name="AnggotaDetail" component={AnggotaDetailScreen} options={{ title: 'Detail Anggota' }} />
         <Stack.Screen name="Transaksi" component={TransaksiScreen} options={{ title: 'Riwayat Transaksi' }} />
         <Stack.Screen name="LacakKartu" component={LacakKartuScreen} options={{ title: 'Lacak Kartu' }} />
         <Stack.Screen name="LocationHistory" component={LocationHistoryScreen} options={{ title: 'Riwayat Lokasi', headerShown: false }} />
-        <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profil Saya' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
