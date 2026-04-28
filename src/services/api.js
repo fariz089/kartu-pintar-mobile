@@ -102,6 +102,14 @@ export const anggotaAPI = {
     const res = await api.get(`/api/anggota/${kartuId}`);
     return res.data;
   },
+  getRiwayatHidup: async (kartuId) => {
+    const res = await api.get(`/api/anggota/${kartuId}/riwayat-hidup`);
+    return res.data;
+  },
+  updateRiwayatHidup: async (kartuId, data) => {
+    const res = await api.put(`/api/anggota/${kartuId}/riwayat-hidup`, data);
+    return res.data;
+  },
 };
 
 // SCAN (MiLi Card NFC & QR)

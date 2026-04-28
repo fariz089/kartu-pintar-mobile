@@ -63,11 +63,11 @@
       "expo-asset",
       "expo-font"
     ],
-    "owner": "sonta23",
     "extra": {
       "eas": {
-        "projectId": "c174f57b-d69c-42dd-afb8-88cccc20ddb6"
+        "projectId": "7d65aabc-159b-4eaf-b97c-88376a4928b8"
       }
-    }
+    },
+    "owner": "fariz089"
   }
 }
