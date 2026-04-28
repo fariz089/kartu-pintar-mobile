@@ -233,13 +233,38 @@ export default function LacakKartuScreen({ navigation }) {
               <Ionicons name="navigate" size={14} color={COLORS.info} />
               <Text style={[styles.actionText, { color: COLORS.info }]}>Navigasi</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.actionBtn} 
+              onPress={() => navigation.navigate('LocationHistory', {
+                kartuId: item.kartu_id,
+                nama: item.nama,
+                pangkat: item.pangkat,
+              })}
+            >
+              <Ionicons name="time" size={14} color={COLORS.warning} />
+              <Text style={[styles.actionText, { color: COLORS.warning }]}>Timeline</Text>
+            </TouchableOpacity>
           </View>
         )}
 
         {/* Expanded history */}
         {isExpanded && (
           <View style={styles.historySection}>
-            <Text style={styles.historySectionTitle}>RIWAYAT LOKASI</Text>
+            <View style={styles.historyHeaderRow}>
+              <Text style={styles.historySectionTitle}>RIWAYAT LOKASI</Text>
+              <TouchableOpacity
+                style={styles.historyFullBtn}
+                onPress={() => navigation.navigate('LocationHistory', {
+                  kartuId: item.kartu_id,
+                  nama: item.nama,
+                  pangkat: item.pangkat,
+                })}
+              >
+                <Ionicons name="open-outline" size={12} color={COLORS.accent} />
+                <Text style={styles.historyFullBtnText}>Timeline Lengkap</Text>
+              </TouchableOpacity>
+            </View>
             {history.length > 0 ? (
               history.slice(0, 10).map((h, i) => (
                 <TouchableOpacity 
@@ -652,7 +677,15 @@ const styles = StyleSheet.create({
   
   // History section
   historySection: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border },
-  historySectionTitle: { fontSize: SIZES.xs, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 2, marginBottom: 8 },
+  historyHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  historySectionTitle: { fontSize: SIZES.xs, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 2 },
+  historyFullBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4,
+    backgroundColor: COLORS.accent + '22', borderRadius: 6,
+    borderWidth: 1, borderColor: COLORS.accent + '44',
+  },
+  historyFullBtnText: { fontSize: 10, color: COLORS.accent, fontWeight: '600' },
   historyItem: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border + '44',
