@@ -36,6 +36,8 @@ const tabIcons = {
   Penjualan: ['receipt', 'receipt-outline'],
   ScanQR: ['scan', 'scan-outline'],
   ScanNFC: ['wifi', 'wifi-outline'],
+  Lacak: ['location', 'location-outline'],
+  Anggota: ['people', 'people-outline'],
   Profil: ['person-circle', 'person-circle-outline'],
 };
 
@@ -60,6 +62,19 @@ function AdminTabs() {
       <Tab.Screen name="Kasir" component={POSScreen} options={{ title: 'Kasir', headerTitle: 'Point of Sale' }} />
       <Tab.Screen name="Scan" component={ScanQRScreen} options={{ title: 'Scan', headerTitle: 'Scan QR Code' }} />
       <Tab.Screen name="TopUp" component={TopUpScreen} options={{ title: 'Top Up', headerTitle: 'Top Up Saldo' }} />
+      <Tab.Screen name="Profil" component={ProfileScreen} options={{ title: 'Profil', headerTitle: 'Profil Saya' }} />
+    </Tab.Navigator>
+  );
+}
+
+// PAM (Pembina) — tab khusus tanpa Kasir & TopUp, fokus monitoring anggota
+function PamTabs() {
+  return (
+    <Tab.Navigator screenOptions={({ route }) => getTabScreenOptions(route)}>
+      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
+      <Tab.Screen name="Anggota" component={AnggotaListScreen} options={{ title: 'Anggota', headerTitle: 'Data Anggota' }} />
+      <Tab.Screen name="Scan" component={ScanQRScreen} options={{ title: 'Scan', headerTitle: 'Scan QR Code' }} />
+      <Tab.Screen name="Lacak" component={LacakKartuScreen} options={{ title: 'Lacak', headerTitle: 'Lacak Kartu' }} />
       <Tab.Screen name="Profil" component={ProfileScreen} options={{ title: 'Profil', headerTitle: 'Profil Saya' }} />
     </Tab.Navigator>
   );
@@ -96,6 +111,7 @@ function MainTabsRouter() {
     })();
   }, []);
   if (role === 'admin') return <AdminTabs />;
+  if (role === 'pam') return <PamTabs />;
   if (role === 'operator_kantin') return <KantinTabs />;
   return <UserTabs />;
 }

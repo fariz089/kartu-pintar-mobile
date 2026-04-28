@@ -75,15 +75,11 @@ export default function ScanResultScreen({ route, navigation }) {
         <InfoRow icon="qr-code" label="QR Data" value={anggota.qr_data} />
       </View>
 
-      {/* Action Buttons */}
+      {/* Action Buttons — tombol Bayar dihapus, tinggal Scan Lagi */}
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Pembayaran', { selectedAnggota: anggota })}>
-          <Ionicons name="card" size={20} color={COLORS.bgDark} />
-          <Text style={styles.actionBtnText}>Bayar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSecondary]} onPress={() => navigation.goBack()}>
-          <Ionicons name="scan" size={20} color={COLORS.accent} />
-          <Text style={[styles.actionBtnText, { color: COLORS.accent }]}>Scan Lagi</Text>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="scan" size={20} color={COLORS.bgDark} />
+          <Text style={styles.actionBtnText}>Scan Lagi</Text>
         </TouchableOpacity>
       </View>
 
@@ -143,9 +139,6 @@ const styles = StyleSheet.create({
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.accent, borderRadius: 12, padding: 14, gap: 8,
-  },
-  actionBtnSecondary: {
-    backgroundColor: 'transparent', borderWidth: 1, borderColor: COLORS.accent,
   },
   actionBtnText: { fontWeight: '700', fontSize: SIZES.md, color: COLORS.bgDark },
 });

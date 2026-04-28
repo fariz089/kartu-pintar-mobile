@@ -41,13 +41,21 @@ export default function DashboardScreen({ navigation }) {
     ]);
   };
 
-  const StatCard = ({ icon, label, value, color }) => (
-    <View style={[styles.statCard, { borderLeftColor: color }]}>
-      <Ionicons name={icon} size={24} color={color} />
-      <Text style={styles.statValue}>{value ?? '-'}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
+  // StatCard sekarang clickable: kalau onPress diberikan, dibungkus TouchableOpacity
+  const StatCard = ({ icon, label, value, color, onPress }) => {
+    const Wrapper = onPress ? TouchableOpacity : View;
+    return (
+      <Wrapper
+        style={[styles.statCard, { borderLeftColor: color }]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <Ionicons name={icon} size={24} color={color} />
+        <Text style={styles.statValue}>{value ?? '-'}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </Wrapper>
+    );
+  };
 
   const MenuBtn = ({ icon, label, onPress, color = COLORS.primary }) => (
     <TouchableOpacity style={styles.menuBtn} onPress={onPress}>
@@ -81,14 +89,38 @@ export default function DashboardScreen({ navigation }) {
         </View>
       )}
 
-      {/* Stats */}
+      {/* Stats — semua clickable menuju menu tujuannya */}
       <View style={styles.statsRow}>
-        <StatCard icon="people" label="Anggota" value={stats?.total_anggota} color={COLORS.accent} />
-        <StatCard icon="card" label="Kartu Aktif" value={stats?.kartu_aktif} color={COLORS.success} />
+        <StatCard
+          icon="people"
+          label="Anggota"
+          value={stats?.total_anggota}
+          color={COLORS.accent}
+          onPress={() => navigation.navigate('AnggotaList')}
+        />
+        <StatCard
+          icon="card"
+          label="Kartu Aktif"
+          value={stats?.kartu_aktif}
+          color={COLORS.success}
+          onPress={() => navigation.navigate('AnggotaList', { filterStatus: 'Aktif' })}
+        />
       </View>
       <View style={styles.statsRow}>
-        <StatCard icon="alert-circle" label="Hilang" value={stats?.kartu_hilang} color={COLORS.danger} />
-        <StatCard icon="receipt" label="Transaksi" value={stats?.total_transaksi} color={COLORS.info} />
+        <StatCard
+          icon="alert-circle"
+          label="Hilang"
+          value={stats?.kartu_hilang}
+          color={COLORS.danger}
+          onPress={() => navigation.navigate('AnggotaList', { filterStatus: 'Hilang' })}
+        />
+        <StatCard
+          icon="receipt"
+          label="Transaksi"
+          value={stats?.total_transaksi}
+          color={COLORS.info}
+          onPress={() => navigation.navigate('Transaksi')}
+        />
       </View>
 
       {/* Quick Menu */}
