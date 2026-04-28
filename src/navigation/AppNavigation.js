@@ -14,6 +14,7 @@ import ScanResultScreen from '../screens/ScanResultScreen';
 import POSScreen from '../screens/POSScreen';
 import TopUpScreen from '../screens/TopUpScreen';
 import AnggotaListScreen from '../screens/AnggotaListScreen';
+import AnggotaDetailScreen from '../screens/AnggotaDetailScreen';
 import TransaksiScreen from '../screens/TransaksiScreen';
 import LacakKartuScreen from '../screens/LacakKartuScreen';
 import LocationHistoryScreen from '../screens/LocationHistoryScreen';
@@ -128,6 +129,7 @@ export default function AppNavigation() {
         <Stack.Screen name="POS" component={POSScreen} options={{ title: 'Point of Sale' }} />
         <Stack.Screen name="TopUp" component={TopUpScreen} options={{ title: 'Top Up Saldo' }} />
         <Stack.Screen name="AnggotaList" component={AnggotaListScreen} options={{ title: 'Data Anggota' }} />
+        <Stack.Screen name="AnggotaDetail" component={AnggotaDetailScreen} options={{ title: 'Detail Anggota' }} />
         <Stack.Screen name="Transaksi" component={TransaksiScreen} options={{ title: 'Riwayat Transaksi' }} />
         <Stack.Screen name="LacakKartu" component={LacakKartuScreen} options={{ title: 'Lacak Kartu' }} />
         <Stack.Screen name="LocationHistory" component={LocationHistoryScreen} options={{ title: 'Riwayat Lokasi', headerShown: false }} />
