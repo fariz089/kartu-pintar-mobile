@@ -37,6 +37,7 @@ export default function POSScreen({ route, navigation }) {
   const [anggotaList, setAnggotaList] = useState([]);
   const [selectedAnggota, setSelectedAnggota] = useState(route.params?.selectedAnggota || null);
   const [showAnggotaPicker, setShowAnggotaPicker] = useState(false);
+  const [anggotaSearchQuery, setAnggotaSearchQuery] = useState('');
   
   // Tap modal
   const [showTapModal, setShowTapModal] = useState(false);
@@ -517,25 +518,58 @@ export default function POSScreen({ route, navigation }) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Pilih Anggota</Text>
-              <TouchableOpacity onPress={() => setShowAnggotaPicker(false)}>
+              <TouchableOpacity onPress={() => { setShowAnggotaPicker(false); setAnggotaSearchQuery(''); }}>
                 <Ionicons name="close" size={24} color={COLORS.textPrimary} />
               </TouchableOpacity>
             </View>
+            <View style={styles.anggotaSearchBar}>
+              <Ionicons name="search" size={18} color={COLORS.textMuted} />
+              <TextInput
+                style={styles.anggotaSearchInput}
+                placeholder="Cari nama / NRP / pangkat..."
+                placeholderTextColor={COLORS.textMuted}
+                value={anggotaSearchQuery}
+                onChangeText={setAnggotaSearchQuery}
+                autoCorrect={false}
+              />
+              {anggotaSearchQuery ? (
+                <TouchableOpacity onPress={() => setAnggotaSearchQuery('')}>
+                  <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
             <FlatList
-              data={anggotaList}
+              data={anggotaList.filter(a => {
+                if (!anggotaSearchQuery) return true;
+                const q = anggotaSearchQuery.toLowerCase();
+                return (
+                  (a.nama || '').toLowerCase().includes(q) ||
+                  (a.nrp || '').toLowerCase().includes(q) ||
+                  (a.pangkat || '').toLowerCase().includes(q) ||
+                  (a.kartu_id || '').toLowerCase().includes(q)
+                );
+              })}
               keyExtractor={item => item.kartu_id}
               renderItem={({ item }) => (
                 <TouchableOpacity 
                   style={styles.anggotaItem}
-                  onPress={() => { setSelectedAnggota(item); setShowAnggotaPicker(false); }}
+                  onPress={() => { setSelectedAnggota(item); setShowAnggotaPicker(false); setAnggotaSearchQuery(''); }}
                 >
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.anggotaName}>{item.nama}</Text>
-                    <Text style={styles.anggotaPangkat}>{item.pangkat}</Text>
+                    <Text style={styles.anggotaPangkat}>{item.pangkat} · {item.kartu_id}</Text>
                   </View>
                   <Text style={styles.anggotaSaldo}>{formatRupiah(item.saldo)}</Text>
                 </TouchableOpacity>
               )}
+              ListEmptyComponent={
+                <View style={{ padding: 30, alignItems: 'center' }}>
+                  <Ionicons name="person-remove" size={32} color={COLORS.textMuted} />
+                  <Text style={{ color: COLORS.textMuted, marginTop: 8 }}>
+                    {anggotaSearchQuery ? 'Anggota tidak ditemukan' : 'Belum ada anggota'}
+                  </Text>
+                </View>
+              }
             />
           </View>
         </View>
@@ -830,6 +864,16 @@ const styles = StyleSheet.create({
     padding: SIZES.padding, borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   modalTitle: { fontSize: SIZES.xl, fontWeight: '700', color: COLORS.textPrimary },
+  anggotaSearchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    margin: SIZES.padding, marginBottom: 4,
+    paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: COLORS.bgInput, borderRadius: 10,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  anggotaSearchInput: {
+    flex: 1, color: COLORS.textPrimary, fontSize: SIZES.md, paddingVertical: 4,
+  },
   anggotaItem: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     padding: SIZES.padding, borderBottomWidth: 1, borderBottomColor: COLORS.border,

@@ -1,9 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, RefreshControl, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, SIZES, formatRupiah } from '../utils/theme';
-import { anggotaAPI } from '../services/api';
+import { anggotaAPI, API_BASE } from '../services/api';
 
 export default function AnggotaListScreen({ route, navigation }) {
   const [data, setData] = useState([]);
@@ -32,7 +32,15 @@ export default function AnggotaListScreen({ route, navigation }) {
 
   const statusColor = (s) => s === 'Aktif' ? COLORS.success : s === 'Hilang' ? COLORS.danger : COLORS.warning;
 
-  const renderItem = ({ item }) => (
+  const buildFotoUrl = (f) => {
+    if (!f || f === '/static/img/avatar-default.svg') return null;
+    if (f.startsWith('http://') || f.startsWith('https://')) return f;
+    return `${API_BASE}${f.startsWith('/') ? '' : '/'}${f}`;
+  };
+
+  const renderItem = ({ item }) => {
+    const fotoUrl = buildFotoUrl(item.foto);
+    return (
     <TouchableOpacity
       style={styles.card}
       onPress={() => navigation.navigate('AnggotaDetail', {
@@ -41,7 +49,11 @@ export default function AnggotaListScreen({ route, navigation }) {
       })}
     >
       <View style={styles.avatar}>
-        <Ionicons name="person" size={24} color={COLORS.accent} />
+        {fotoUrl ? (
+          <Image source={{ uri: fotoUrl }} style={styles.avatarImg} />
+        ) : (
+          <Ionicons name="person" size={24} color={COLORS.accent} />
+        )}
       </View>
       <View style={styles.cardContent}>
         <Text style={styles.nama}>{item.nama}</Text>
@@ -53,7 +65,8 @@ export default function AnggotaListScreen({ route, navigation }) {
         <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} style={{ marginTop: 4 }} />
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -100,8 +113,9 @@ const styles = StyleSheet.create({
   },
   avatar: {
     width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.bgInput,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
+  avatarImg: { width: '100%', height: '100%' },
   cardContent: { flex: 1 },
   nama: { fontSize: SIZES.md, fontWeight: '600', color: COLORS.textPrimary },
   pangkat: { fontSize: SIZES.sm, color: COLORS.textSecondary, marginTop: 2 },

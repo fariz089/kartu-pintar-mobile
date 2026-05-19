@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, formatRupiah } from '../utils/theme';
+import { API_BASE } from '../services/api';
 
 export default function ScanResultScreen({ route, navigation }) {
   const { anggota } = route.params;
@@ -19,13 +20,24 @@ export default function ScanResultScreen({ route, navigation }) {
   const statusColor = anggota.status_kartu === 'Aktif' ? COLORS.success :
     anggota.status_kartu === 'Hilang' ? COLORS.danger : COLORS.warning;
 
+  const fotoUrl = (() => {
+    const f = anggota?.foto;
+    if (!f || f === '/static/img/avatar-default.svg') return null;
+    if (f.startsWith('http://') || f.startsWith('https://')) return f;
+    return `${API_BASE}${f.startsWith('/') ? '' : '/'}${f}`;
+  })();
+
   return (
     <ScrollView style={styles.container}>
       {/* Card Header */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <View style={styles.avatar}>
-            <Ionicons name="person" size={40} color={COLORS.accent} />
+            {fotoUrl ? (
+              <Image source={{ uri: fotoUrl }} style={styles.avatarImg} />
+            ) : (
+              <Ionicons name="person" size={40} color={COLORS.accent} />
+            )}
           </View>
           <View style={styles.cardInfo}>
             <Text style={styles.nama}>{anggota.nama}</Text>
@@ -98,7 +110,9 @@ const styles = StyleSheet.create({
   avatar: {
     width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.bgInput,
     alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: COLORS.accent,
+    overflow: 'hidden',
   },
+  avatarImg: { width: '100%', height: '100%' },
   cardInfo: { flex: 1 },
   nama: { fontSize: SIZES.xl, fontWeight: '700', color: COLORS.textPrimary },
   pangkat: { fontSize: SIZES.md, color: COLORS.accent, marginTop: 2 },

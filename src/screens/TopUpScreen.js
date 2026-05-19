@@ -29,6 +29,7 @@ export default function TopUpScreen({ navigation }) {
   const [selected, setSelected] = useState(null);
   const [nominal, setNominal] = useState('');
   const [showPicker, setShowPicker] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
   const [loading, setLoading] = useState(false);
 
   // TAP Modal states
@@ -319,17 +320,58 @@ export default function TopUpScreen({ navigation }) {
 
       {showPicker && (
         <View style={styles.pickerList}>
-          <ScrollView style={{ maxHeight: 250 }}>
-            {anggotaList.map((a) => (
+          <View style={styles.pickerSearchRow}>
+            <Ionicons name="search" size={16} color={COLORS.textMuted} />
+            <TextInput
+              style={styles.pickerSearchInput}
+              placeholder="Cari nama / NRP / pangkat..."
+              placeholderTextColor={COLORS.textMuted}
+              value={pickerSearch}
+              onChangeText={setPickerSearch}
+              autoCorrect={false}
+            />
+            {pickerSearch ? (
+              <TouchableOpacity onPress={() => setPickerSearch('')}>
+                <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <ScrollView style={{ maxHeight: 250 }} keyboardShouldPersistTaps="handled">
+            {anggotaList
+              .filter((a) => {
+                if (!pickerSearch) return true;
+                const q = pickerSearch.toLowerCase();
+                return (
+                  (a.nama || '').toLowerCase().includes(q) ||
+                  (a.nrp || '').toLowerCase().includes(q) ||
+                  (a.pangkat || '').toLowerCase().includes(q) ||
+                  (a.kartu_id || '').toLowerCase().includes(q)
+                );
+              })
+              .map((a) => (
               <TouchableOpacity key={a.kartu_id} style={styles.pickerItem}
-                onPress={() => { setSelected(a); setShowPicker(false); }}>
-                <View>
+                onPress={() => { setSelected(a); setShowPicker(false); setPickerSearch(''); }}>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.pickerItemName}>{a.nama}</Text>
                   <Text style={styles.pickerItemSub}>{a.pangkat} — {a.kartu_id}</Text>
                 </View>
                 <Text style={styles.pickerItemSaldo}>{formatRupiah(a.saldo)}</Text>
               </TouchableOpacity>
             ))}
+            {anggotaList.length > 0 && pickerSearch &&
+              !anggotaList.some(a => {
+                const q = pickerSearch.toLowerCase();
+                return (
+                  (a.nama || '').toLowerCase().includes(q) ||
+                  (a.nrp || '').toLowerCase().includes(q) ||
+                  (a.pangkat || '').toLowerCase().includes(q) ||
+                  (a.kartu_id || '').toLowerCase().includes(q)
+                );
+              }) && (
+              <View style={{ padding: 16, alignItems: 'center' }}>
+                <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>Anggota tidak ditemukan</Text>
+              </View>
+            )}
           </ScrollView>
         </View>
       )}
@@ -618,6 +660,14 @@ const styles = StyleSheet.create({
   pickerList: {
     backgroundColor: COLORS.bgCard, borderRadius: 12, marginTop: 8,
     borderWidth: 1, borderColor: COLORS.border,
+  },
+  pickerSearchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  },
+  pickerSearchInput: {
+    flex: 1, color: COLORS.textPrimary, fontSize: SIZES.sm, paddingVertical: 4,
   },
   pickerItem: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

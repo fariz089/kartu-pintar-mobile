@@ -1,23 +1,37 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, RefreshControl, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SIZES, formatRupiah } from '../utils/theme';
-import { authAPI, anggotaAPI } from '../services/api';
+import { authAPI, anggotaAPI, API_BASE } from '../services/api';
 
 export default function ProfileScreen({ navigation }) {
   const [user, setUser] = useState(null);
   const [riwayat, setRiwayat] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const [showRiwayat, setShowRiwayat] = useState(false);
+  const [showRiwayat, setShowRiwayat] = useState(true);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [changingPw, setChangingPw] = useState(false);
 
   const loadData = async () => {
     try {
-      const userData = await authAPI.getStoredUser();
+      // Coba fetch fresh dari server dulu, fallback ke stored
+      let userData = null;
+      try {
+        const res = await authAPI.getMe();
+        if (res.success) {
+          userData = res.data;
+          // Update stored user juga supaya konsisten
+          await AsyncStorage.setItem('user', JSON.stringify(userData));
+        }
+      } catch (e) { /* offline / token expired — fallback */ }
+
+      if (!userData) {
+        userData = await authAPI.getStoredUser();
+      }
       setUser(userData);
       // Load riwayat hidup jika ada kartu
       if (userData?.anggota?.kartu_id) {
@@ -111,6 +125,14 @@ export default function ProfileScreen({ navigation }) {
     );
   };
 
+  // Build absolute URL for foto (paths in DB are relative like /static/uploads/...)
+  const fotoUrl = (() => {
+    const f = user?.anggota?.foto;
+    if (!f || f === '/static/img/avatar-default.svg') return null;
+    if (f.startsWith('http://') || f.startsWith('https://')) return f;
+    return `${API_BASE}${f.startsWith('/') ? '' : '/'}${f}`;
+  })();
+
   return (
     <ScrollView style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />}>
@@ -118,7 +140,11 @@ export default function ProfileScreen({ navigation }) {
       {/* Profile Header */}
       <View style={styles.header}>
         <View style={styles.avatarContainer}>
-          <Ionicons name="person" size={40} color={COLORS.accent} />
+          {fotoUrl ? (
+            <Image source={{ uri: fotoUrl }} style={styles.avatarImg} />
+          ) : (
+            <Ionicons name="person" size={40} color={COLORS.accent} />
+          )}
         </View>
         <Text style={styles.name}>{user?.nama || 'User'}</Text>
         <Text style={styles.role}>{user?.role?.toUpperCase()}</Text>
@@ -166,7 +192,7 @@ export default function ProfileScreen({ navigation }) {
       )}
 
       {/* Riwayat Hidup */}
-      {riwayat && (
+      {user?.anggota && (
         <View style={styles.section}>
           <TouchableOpacity style={styles.rhHeader} onPress={() => setShowRiwayat(!showRiwayat)}>
             <Text style={styles.sectionTitle}>RIWAYAT HIDUP</Text>
@@ -174,6 +200,27 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
           {showRiwayat && (
             <View style={styles.card}>
+              {!riwayat || (
+                !riwayat.korp && !riwayat.sumber_ba && !riwayat.tmt_tni && !riwayat.suku_bangsa
+                && !(riwayat.riwayat_pendidikan_umum?.length)
+                && !(riwayat.riwayat_pendidikan_militer?.length)
+                && !(riwayat.riwayat_kepangkatan?.length)
+                && !(riwayat.riwayat_jabatan?.length)
+                && !(riwayat.riwayat_penugasan?.length)
+                && !(riwayat.penugasan_luar_negeri?.length)
+                && !(riwayat.tanda_jasa?.length)
+                && !(riwayat.kemampuan_bahasa?.length)
+                && !(riwayat.riwayat_prestasi?.length)
+                && !riwayat.status_pernikahan && !riwayat.nama_ayah
+              ) ? (
+                <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                  <Ionicons name="information-circle-outline" size={28} color={COLORS.textMuted} />
+                  <Text style={{ color: COLORS.textMuted, fontSize: 12, marginTop: 6, textAlign: 'center' }}>
+                    Data riwayat hidup belum diisi.{'\n'}Hubungi administrator untuk melengkapi data.
+                  </Text>
+                </View>
+              ) : (
+              <>
               {/* Data tambahan */}
               {(riwayat.korp || riwayat.sumber_ba || riwayat.tmt_tni || riwayat.suku_bangsa) && (
                 <View style={{ marginBottom: 10 }}>
@@ -214,6 +261,8 @@ export default function ProfileScreen({ navigation }) {
                   <RHTable title="" rows={riwayat.riwayat_anak}
                     cols={[{key:'nama',label:'Nama Anak'},{key:'tgl_lahir',label:'Tgl Lahir'}]} />
                 </View>
+              )}
+              </>
               )}
             </View>
           )}
@@ -262,8 +311,9 @@ const styles = StyleSheet.create({
   avatarContainer: {
     width: 80, height: 80, borderRadius: 40,
     backgroundColor: COLORS.bgCard, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: COLORS.accent, marginBottom: 12,
+    borderWidth: 2, borderColor: COLORS.accent, marginBottom: 12, overflow: 'hidden',
   },
+  avatarImg: { width: '100%', height: '100%' },
   name: { fontSize: 22, fontWeight: '700', color: COLORS.textPrimary },
   role: { fontSize: 11, color: COLORS.accent, fontWeight: '600', letterSpacing: 3, marginTop: 4 },
   username: { fontSize: 14, color: COLORS.textSecondary, marginTop: 2 },
