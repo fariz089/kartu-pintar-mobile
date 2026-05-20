@@ -18,10 +18,30 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
     try {
       const result = await authAPI.login(username.trim(), password);
-      if (result.success) {
-        navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
-      } else {
+      if (!result.success) {
         Alert.alert('Login Gagal', result.message || 'Username atau password salah');
+        return;
+      }
+      // Password OK → harus lewat step TOTP (belum dapat token penuh)
+      if (result.requires_totp) {
+        if (result.totp_setup_required) {
+          navigation.navigate('TotpSetup', {
+            pendingToken: result.pending_token,
+            username: result.username,
+            nama: result.nama,
+          });
+        } else {
+          navigation.navigate('TotpVerify', {
+            pendingToken: result.pending_token,
+            username: result.username,
+            nama: result.nama,
+          });
+        }
+        return;
+      }
+      // Fallback (server lama yang masih kirim token langsung)
+      if (result.token) {
+        navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
       }
     } catch (error) {
       const msg = error.response?.data?.message || 'Tidak dapat terhubung ke server';

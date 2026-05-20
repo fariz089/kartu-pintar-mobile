@@ -7,6 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../utils/theme';
 
 import LoginScreen from '../screens/LoginScreen';
+import TotpSetupScreen from '../screens/TotpSetupScreen';
+import TotpVerifyScreen from '../screens/TotpVerifyScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import ScanQRScreen from '../screens/ScanQRScreen';
 import ScanNFCScreen from '../screens/ScanNFCScreen';
@@ -122,6 +124,8 @@ export default function AppNavigation() {
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator screenOptions={screenOpts}>
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="TotpSetup" component={TotpSetupScreen} options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="TotpVerify" component={TotpVerifyScreen} options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="MainTabs" component={MainTabsRouter} options={{ headerShown: false }} />
         <Stack.Screen name="ScanQR" component={ScanQRScreen} options={{ title: 'Scan QR Code' }} />
         <Stack.Screen name="ScanNFC" component={ScanNFCScreen} options={{ title: 'Scan NFC' }} />

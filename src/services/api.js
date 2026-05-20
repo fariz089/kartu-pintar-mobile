@@ -63,7 +63,27 @@ function extractMiliId(rawData) {
 export const authAPI = {
   login: async (username, password) => {
     const res = await api.post("/api/auth/login", { username, password });
-    if (res.data.success && res.data.token) {
+    // New flow: login returns either an error OR { success, requires_totp, pending_token, totp_setup_required, ... }
+    // We DO NOT store anything yet — the caller routes to TOTP screen.
+    return res.data;
+  },
+  // After password OK, mobile calls this to begin TOTP enrollment.
+  // Requires pending_token in Authorization header.
+  totpSetup: async (pendingToken) => {
+    const res = await api.get("/api/auth/totp/setup", {
+      headers: { Authorization: `Bearer ${pendingToken}` },
+    });
+    return res.data;
+  },
+  // Verify a TOTP code. Pass the setup_token (during first enrollment) or
+  // the pending_token (when 2FA already active). Optionally pass backup_code instead.
+  totpVerify: async (token, code, { backupCode } = {}) => {
+    const body = backupCode ? { backup_code: backupCode } : { code };
+    const res = await api.post("/api/auth/totp/verify", body, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    // On success the server returns the FULL JWT — persist it.
+    if (res.data?.success && res.data?.token) {
       await AsyncStorage.setItem("token", res.data.token);
       await AsyncStorage.setItem("user", JSON.stringify(res.data.data));
     }
