@@ -1,146 +1,106 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { 
-  View, Text, StyleSheet, TouchableOpacity, Alert, 
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Alert,
   ScrollView, FlatList, Modal, TextInput, ActivityIndicator,
-  Platform, Animated
+  Animated, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, formatRupiah } from '../utils/theme';
-import { produkAPI, kategoriAPI, keuanganAPI, anggotaAPI } from '../services/api';
+import { keuanganAPI, anggotaAPI } from '../services/api';
 
 // Try to import NFC
 let NfcManager = null;
 let NfcTech = null;
 let Ndef = null;
-let nfcAvailable = false;
 
 try {
   const nfc = require('react-native-nfc-manager');
   NfcManager = nfc.default;
   NfcTech = nfc.NfcTech;
   Ndef = nfc.Ndef;
-  nfcAvailable = true;
 } catch (e) {
   console.log('NFC not available');
 }
 
 export default function POSScreen({ route, navigation }) {
-  const [kategoriList, setKategoriList] = useState([]);
-  const [produkList, setProdukList] = useState([]);
-  const [selectedKategori, setSelectedKategori] = useState('all'); // Changed from null to 'all'
-  const [searchQuery, setSearchQuery] = useState('');
-  const [cart, setCart] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
+  // Manual item entry
+  const [itemNama, setItemNama] = useState('');
+  const [itemHarga, setItemHarga] = useState('');
+  const [itemQty, setItemQty] = useState('1');
+  const [cart, setCart] = useState([]); // {uid, nama, harga, jumlah}
+  const [loading, setLoading] = useState(false);
+
   // Member selection
   const [anggotaList, setAnggotaList] = useState([]);
   const [selectedAnggota, setSelectedAnggota] = useState(route.params?.selectedAnggota || null);
   const [showAnggotaPicker, setShowAnggotaPicker] = useState(false);
   const [anggotaSearchQuery, setAnggotaSearchQuery] = useState('');
-  
+
   // Tap modal
   const [showTapModal, setShowTapModal] = useState(false);
   const [tapInput, setTapInput] = useState('');
-  const [tapAnggota, setTapAnggota] = useState(null);
-  const [tapStep, setTapStep] = useState(1); // 1: input/scan, 2: confirm, 3: success
   const [tapLoading, setTapLoading] = useState(false);
-  const [tapResult, setTapResult] = useState(null);
   const [nfcScanning, setNfcScanning] = useState(false);
   const [nfcSupported, setNfcSupported] = useState(false);
-  
-  // Pulse animation for NFC
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  
-  // QR Scanner states
+
+  // QR scanner
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [qrScanned, setQrScanned] = useState(false);
 
   useEffect(() => {
-    loadData();
+    loadAnggota();
     checkNfcSupport();
     return () => {
-      if (NfcManager) {
-        NfcManager.cancelTechnologyRequest().catch(() => {});
-      }
+      if (NfcManager) NfcManager.cancelTechnologyRequest().catch(() => {});
     };
   }, []);
 
   const checkNfcSupport = async () => {
-    if (!NfcManager) {
-      setNfcSupported(false);
-      return;
-    }
+    if (!NfcManager) { setNfcSupported(false); return; }
     try {
       const supported = await NfcManager.isSupported();
-      setNfcSupported(supported);
       if (supported) {
         await NfcManager.start();
         const enabled = await NfcManager.isEnabled();
-        setNfcSupported(enabled); // Only show NFC button if enabled
-      }
-    } catch (e) {
-      console.log('NFC check error:', e);
-      setNfcSupported(false);
-    }
+        setNfcSupported(enabled);
+      } else setNfcSupported(false);
+    } catch (e) { setNfcSupported(false); }
   };
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadAnggota = async () => {
     try {
-      const [katRes, prodRes, angRes] = await Promise.all([
-        kategoriAPI.list(),
-        produkAPI.list(),
-        anggotaAPI.list()
-      ]);
-      if (katRes.success) setKategoriList(katRes.data);
-      if (prodRes.success) setProdukList(prodRes.data);
+      const angRes = await anggotaAPI.list();
       if (angRes.success) setAnggotaList(angRes.data.filter(a => a.status_kartu === 'Aktif'));
-    } catch (e) {
-      console.log('Error loading:', e);
-    }
-    setLoading(false);
+    } catch (e) { console.log('Error loading anggota:', e); }
   };
 
-  // Filter products - Fixed to use 'all' instead of null
-  const filteredProducts = produkList.filter(p => {
-    const matchKategori = selectedKategori === 'all' || p.kategori_id === selectedKategori;
-    const matchSearch = !searchQuery || 
-      p.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.kode.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchKategori && matchSearch;
-  });
-
-  // Cart functions
-  const addToCart = (product) => {
-    setCart(prev => {
-      const existing = prev.find(c => c.id === product.id);
-      if (existing) {
-        if (existing.jumlah >= product.stok) {
-          Alert.alert('Stok Habis', `Stok ${product.nama} hanya ${product.stok}`);
-          return prev;
-        }
-        return prev.map(c => c.id === product.id ? {...c, jumlah: c.jumlah + 1} : c);
-      }
-      return [...prev, {...product, jumlah: 1}];
-    });
+  // ---------- Cart ----------
+  const addManualItem = () => {
+    const nama = itemNama.trim();
+    const harga = parseInt(itemHarga || '0', 10);
+    const qty = parseInt(itemQty || '1', 10);
+    if (!nama) { Alert.alert('Error', 'Nama item wajib diisi'); return; }
+    if (!harga || harga <= 0) { Alert.alert('Error', 'Harga harus lebih dari 0'); return; }
+    if (!qty || qty <= 0) { Alert.alert('Error', 'Qty minimal 1'); return; }
+    setCart(prev => [...prev, { uid: Date.now() + Math.random(), nama, harga, jumlah: qty }]);
+    setItemNama(''); setItemHarga(''); setItemQty('1');
   };
 
-  const updateCartQty = (productId, delta) => {
+  const updateCartQty = (uid, delta) => {
     setCart(prev => {
-      const item = prev.find(c => c.id === productId);
+      const item = prev.find(c => c.uid === uid);
       if (!item) return prev;
-      
       const newQty = item.jumlah + delta;
-      if (newQty <= 0) return prev.filter(c => c.id !== productId);
-      if (newQty > item.stok) {
-        Alert.alert('Stok Tidak Cukup', `Maksimal ${item.stok}`);
-        return prev;
-      }
-      return prev.map(c => c.id === productId ? {...c, jumlah: newQty} : c);
+      if (newQty <= 0) return prev.filter(c => c.uid !== uid);
+      return prev.map(c => c.uid === uid ? { ...c, jumlah: newQty } : c);
     });
   };
+
+  const removeItem = (uid) => setCart(prev => prev.filter(c => c.uid !== uid));
 
   const clearCart = () => {
     if (cart.length === 0) return;
@@ -150,138 +110,121 @@ export default function POSScreen({ route, navigation }) {
     ]);
   };
 
-  // Calculate totals
-  const cartTotal = cart.reduce((sum, c) => sum + (c.harga * c.jumlah), 0);
+  const cartTotal = cart.reduce((sum, c) => sum + c.harga * c.jumlah, 0);
   const cartCount = cart.reduce((sum, c) => sum + c.jumlah, 0);
 
-  // Process payment (manual)
-  const handleManualPayment = async () => {
-    if (!selectedAnggota) {
-      Alert.alert('Error', 'Pilih anggota terlebih dahulu');
-      return;
+  const buildItems = () => cart.map(c => ({ nama: c.nama, harga: c.harga, jumlah: c.jumlah }));
+
+  // ---------- Payment ----------
+  const finalizeSuccess = (data, isHutang) => {
+    let msg = `Trx: ${data.trx_id}\nTotal: ${formatRupiah(cartTotal)}\nSisa saldo: ${formatRupiah(data.saldo_sesudah)}`;
+    if (data.hutang_ditambah > 0) {
+      msg += `\nHutang +${formatRupiah(data.hutang_ditambah)} (total ${formatRupiah(data.hutang_total)})`;
     }
-    if (cart.length === 0) {
-      Alert.alert('Error', 'Keranjang masih kosong');
-      return;
-    }
-    if (selectedAnggota.saldo < cartTotal) {
-      Alert.alert('Saldo Tidak Cukup', `Saldo ${selectedAnggota.nama}: ${formatRupiah(selectedAnggota.saldo)}`);
-      return;
-    }
+    Alert.alert(isHutang ? 'Tercatat sebagai Hutang' : 'Berhasil!', msg);
+    setCart([]);
+    setSelectedAnggota(null);
+    loadAnggota();
+  };
+
+  // Konfirmasi popup hutang
+  const askHutang = (kartuId, kekurangan, saldo, nama, afterClose) => {
+    Alert.alert(
+      'Saldo Tidak Cukup',
+      `${nama}\nSaldo: ${formatRupiah(saldo)}\nKekurangan: ${formatRupiah(kekurangan)}\n\nSaldo akan dipakai sampai habis, sisa kekurangan dicatat sebagai hutang. Apakah customer yakin ingin menambahkan ke hutang?`,
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Ya, Tambah Hutang', onPress: async () => {
+            setLoading(true);
+            try {
+              const res = await keuanganAPI.pembayaranCart(kartuId, buildItems(), 'Manual', true);
+              if (res.success) { finalizeSuccess(res.data, true); if (afterClose) afterClose(); }
+              else Alert.alert('Gagal', res.message);
+            } catch (e) {
+              Alert.alert('Error', e.response?.data?.message || 'Gagal memproses');
+            }
+            setLoading(false);
+          }
+        }
+      ]
+    );
+  };
+
+  const handleManualPayment = () => {
+    if (!selectedAnggota) { Alert.alert('Error', 'Pilih anggota terlebih dahulu'); return; }
+    if (cart.length === 0) { Alert.alert('Error', 'Keranjang masih kosong'); return; }
 
     Alert.alert('Konfirmasi', `Bayar ${formatRupiah(cartTotal)} untuk ${selectedAnggota.nama}?`, [
       { text: 'Batal', style: 'cancel' },
-      { text: 'Proses', onPress: async () => {
-        setLoading(true);
-        try {
-          const items = cart.map(c => ({ produk_id: c.id, jumlah: c.jumlah }));
-          const res = await keuanganAPI.pembayaranCart(selectedAnggota.kartu_id, items, 'Manual');
-          if (res.success) {
-            Alert.alert('Berhasil!', 
-              `Trx: ${res.data.trx_id}\nTotal: ${formatRupiah(res.data.total)}\nSisa saldo: ${formatRupiah(res.data.saldo_sesudah)}`
-            );
-            setCart([]);
-            setSelectedAnggota(null);
-            loadData();
-          } else {
-            Alert.alert('Gagal', res.message);
+      {
+        text: 'Proses', onPress: async () => {
+          setLoading(true);
+          try {
+            const res = await keuanganAPI.pembayaranCart(selectedAnggota.kartu_id, buildItems(), 'Manual', false);
+            if (res.success) { finalizeSuccess(res.data, false); }
+            else if (res.need_hutang) {
+              setLoading(false);
+              askHutang(selectedAnggota.kartu_id, res.kekurangan, res.saldo, selectedAnggota.nama);
+              return;
+            } else Alert.alert('Gagal', res.message);
+          } catch (e) {
+            const d = e.response?.data;
+            if (d && d.need_hutang) {
+              setLoading(false);
+              askHutang(selectedAnggota.kartu_id, d.kekurangan, d.saldo, selectedAnggota.nama);
+              return;
+            }
+            Alert.alert('Error', d?.message || 'Gagal memproses');
           }
-        } catch (e) {
-          Alert.alert('Error', e.response?.data?.message || 'Gagal memproses');
+          setLoading(false);
         }
-        setLoading(false);
-      }}
+      }
     ]);
   };
 
-  // Start pulse animation
+  // ---------- Member tap lookup ----------
   const startPulse = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.2, duration: 800, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-      ])
-    ).start();
+    Animated.loop(Animated.sequence([
+      Animated.timing(pulseAnim, { toValue: 1.2, duration: 800, useNativeDriver: true }),
+      Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+    ])).start();
   };
+  const stopPulse = () => { pulseAnim.stopAnimation(); pulseAnim.setValue(1); };
 
-  // Stop pulse animation
-  const stopPulse = () => {
-    pulseAnim.stopAnimation();
-    pulseAnim.setValue(1);
-  };
-
-  // TAP payment flow
   const openTapModal = () => {
-    if (cart.length === 0) {
-      Alert.alert('Error', 'Keranjang masih kosong');
-      return;
-    }
     setShowTapModal(true);
-    setTapStep(1);
     setTapInput('');
-    setTapAnggota(null);
-    setTapResult(null);
     setNfcScanning(false);
     setShowQRScanner(false);
     setQrScanned(false);
   };
 
-  // Start NFC scanning - sama dengan ScanNFCScreen
   const startNfcScan = async () => {
     if (!NfcManager || !nfcSupported) {
       Alert.alert('NFC Tidak Tersedia', 'Perangkat ini tidak mendukung NFC atau NFC tidak aktif');
       return;
     }
-
     setNfcScanning(true);
     startPulse();
-
     try {
-      // Sama dengan ScanNFCScreen - pakai NfcTech.Ndef dan NfcTech.NfcA
       await NfcManager.requestTechnology([NfcTech.Ndef, NfcTech.NfcA]);
       const tag = await NfcManager.getTag();
-      
-      if (!tag) {
-        Alert.alert('Error', 'Tidak bisa membaca kartu');
-        return;
-      }
-
+      if (!tag) { Alert.alert('Error', 'Tidak bisa membaca kartu'); return; }
       let scanData = null;
-
-      // Try NDEF first (MiLi Card URL)
       if (tag.ndefMessage && tag.ndefMessage.length > 0) {
         for (const record of tag.ndefMessage) {
           if (Ndef && record.payload) {
-            try {
-              const text = Ndef.text.decodePayload(record.payload);
-              if (text) { scanData = text; break; }
-            } catch (e) {}
-            try {
-              const uri = Ndef.uri.decodePayload(record.payload);
-              if (uri) { scanData = uri; break; }
-            } catch (e) {}
+            try { const t = Ndef.text.decodePayload(record.payload); if (t) { scanData = t; break; } } catch (e) {}
+            try { const u = Ndef.uri.decodePayload(record.payload); if (u) { scanData = u; break; } } catch (e) {}
           }
         }
       }
-
-      // Fallback to NFC UID
-      if (!scanData && tag.id) {
-        scanData = tag.id.toUpperCase();
-      }
-
-      if (scanData) {
-        console.log('[NFC] MiLi Card data:', scanData);
-        setTapInput(scanData);
-        // Auto search after NFC read
-        await handleTapSearchWithUID(scanData);
-      } else {
-        Alert.alert('Error', 'Kartu terdeteksi tapi data tidak terbaca');
-      }
+      if (!scanData && tag.id) scanData = tag.id.toUpperCase();
+      if (scanData) { setTapInput(scanData); await lookupMember(scanData, 'NFC'); }
+      else Alert.alert('Error', 'Kartu terdeteksi tapi data tidak terbaca');
     } catch (e) {
-      console.log('NFC Error:', e);
-      if (e.message !== 'cancelled') {
-        Alert.alert('NFC Error', 'Gagal membaca kartu. Coba lagi.');
-      }
+      if (e.message !== 'cancelled') Alert.alert('NFC Error', 'Gagal membaca kartu. Coba lagi.');
     } finally {
       setNfcScanning(false);
       stopPulse();
@@ -289,24 +232,24 @@ export default function POSScreen({ route, navigation }) {
     }
   };
 
-  // Stop NFC scanning
   const stopNfcScan = async () => {
     setNfcScanning(false);
     stopPulse();
-    try { 
-      if (NfcManager) await NfcManager.cancelTechnologyRequest(); 
-    } catch (e) {}
+    try { if (NfcManager) await NfcManager.cancelTechnologyRequest(); } catch (e) {}
   };
 
-  // Handle search with UID (from NFC)
-  const handleTapSearchWithUID = async (uid) => {
-    if (!uid.trim()) return;
+  const lookupMember = async (scanData, metode) => {
+    if (!scanData || !scanData.trim()) return;
     setTapLoading(true);
     try {
-      const res = await keuanganAPI.pembayaranTap(uid, [], 'NFC');
-      if (res.success && res.data.ready_to_pay) {
-        setTapAnggota(res.data.anggota);
-        setTapStep(2);
+      const res = await keuanganAPI.pembayaranTap(scanData, metode);
+      if (res.success && res.data.anggota) {
+        const a = res.data.anggota;
+        setSelectedAnggota({
+          kartu_id: a.kartu_id, nama: a.nama, pangkat: a.pangkat,
+          saldo: a.saldo, hutang: a.hutang || 0, status_kartu: 'Aktif',
+        });
+        closeTapModal();
       } else {
         Alert.alert('Tidak Ditemukan', res.message || 'Kartu tidak terdaftar');
       }
@@ -316,676 +259,312 @@ export default function POSScreen({ route, navigation }) {
     setTapLoading(false);
   };
 
-  const handleTapSearch = async () => {
-    await handleTapSearchWithUID(tapInput);
-  };
-
-  const handleTapConfirm = async () => {
-    if (!tapAnggota) return;
-    
-    if (tapAnggota.saldo < cartTotal) {
-      Alert.alert('Saldo Tidak Cukup', `Saldo: ${formatRupiah(tapAnggota.saldo)}`);
-      return;
-    }
-
-    setTapLoading(true);
-    try {
-      const items = cart.map(c => ({ produk_id: c.id, jumlah: c.jumlah }));
-      const res = await keuanganAPI.pembayaranTap(tapInput, items, 'NFC');
-      if (res.success) {
-        setTapResult(res.data);
-        setTapStep(3);
-      } else {
-        Alert.alert('Gagal', res.message);
-      }
-    } catch (e) {
-      Alert.alert('Error', e.response?.data?.message || 'Gagal memproses');
-    }
-    setTapLoading(false);
-  };
-
   const closeTapModal = () => {
     stopNfcScan();
     setShowTapModal(false);
     setShowQRScanner(false);
-    if (tapStep === 3) {
-      setCart([]);
-      loadData();
-    }
   };
 
-  // QR Code scan handler
   const handleQRScanned = async ({ data }) => {
     if (qrScanned) return;
     setQrScanned(true);
-    
     let cardId = data;
-    // Extract card ID from URL if needed
-    if (data.includes('mfrscode.com') || data.includes('mfrcode.com')) {
-      const match = data.match(/[KS][PC]-\d{4}-\d{3}/);
-      if (match) cardId = match[0];
-    }
-    
+    const match = data.match(/[KS][PC]-\d{4}-\d{3}/);
+    if (match) cardId = match[0];
     setTapInput(cardId);
     setShowQRScanner(false);
-    await handleTapSearchWithUID(cardId);
+    await lookupMember(cardId, 'QR');
   };
 
-  // Render product item
-  const renderProduct = ({ item }) => {
-    const inCart = cart.find(c => c.id === item.id);
-    return (
-      <TouchableOpacity 
-        style={[styles.productCard, inCart && styles.productCardInCart]} 
-        onPress={() => addToCart(item)}
-      >
-        <Text style={styles.productCode}>{item.kode}</Text>
-        <Text style={styles.productName} numberOfLines={2}>{item.nama}</Text>
-        <View style={styles.productFooter}>
-          <Text style={styles.productPrice}>{formatRupiah(item.harga)}</Text>
-          <Text style={[styles.productStock, item.stok_rendah && styles.productStockLow]}>
-            {item.stok} {item.satuan}
-          </Text>
-        </View>
-        {inCart && (
-          <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeText}>{inCart.jumlah}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  };
+  // ---------- Render ----------
+  const filteredAnggota = anggotaList.filter(a => {
+    const q = anggotaSearchQuery.toLowerCase();
+    return !q || (a.nama + ' ' + a.nrp + ' ' + a.pangkat + ' ' + a.kartu_id).toLowerCase().includes(q);
+  });
 
-  if (loading && produkList.length === 0) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={COLORS.accent} />
+  const renderCartItem = ({ item }) => (
+    <View style={styles.cartItem}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.cartItemName}>{item.nama}</Text>
+        <Text style={styles.cartItemSub}>{formatRupiah(item.harga)} × {item.jumlah}</Text>
       </View>
-    );
-  }
+      <View style={styles.qtyControls}>
+        <TouchableOpacity style={styles.qtyBtn} onPress={() => updateCartQty(item.uid, -1)}>
+          <Ionicons name="remove" size={16} color={COLORS.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.qtyText}>{item.jumlah}</Text>
+        <TouchableOpacity style={styles.qtyBtn} onPress={() => updateCartQty(item.uid, 1)}>
+          <Ionicons name="add" size={16} color={COLORS.textPrimary} />
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.cartItemSubtotal}>{formatRupiah(item.harga * item.jumlah)}</Text>
+      <TouchableOpacity onPress={() => removeItem(item.uid)} style={{ paddingLeft: 8 }}>
+        <Ionicons name="close" size={18} color={COLORS.danger} />
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
-    <View style={styles.container}>
-      {/* Categories */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryBar}>
-        <TouchableOpacity 
-          style={[
-            styles.categoryChip, 
-            selectedKategori === 'all' && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
-          ]}
-          onPress={() => setSelectedKategori('all')}
-        >
-          <Ionicons name="grid" size={16} color={selectedKategori === 'all' ? '#1a2332' : '#e8e4d9'} />
-          <Text style={[
-            styles.categoryText, 
-            { color: selectedKategori === 'all' ? '#1a2332' : '#e8e4d9' }
-          ]}>Semua</Text>
-        </TouchableOpacity>
-        {kategoriList.map(k => {
-          const isActive = selectedKategori === k.id;
-          return (
-            <TouchableOpacity 
-              key={k.id}
-              style={[
-                styles.categoryChip, 
-                isActive && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
-              ]}
-              onPress={() => setSelectedKategori(k.id)}
-            >
-              <Text style={[
-                styles.categoryText, 
-                { color: isActive ? '#1a2332' : '#e8e4d9' }
-              ]}>
-                {k.nama}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={{ padding: SIZES.padding, paddingBottom: 40 }}>
+        {/* Manual item entry */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}><Ionicons name="add-circle" size={16} color={COLORS.accent} /> Tambah Item</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Nama item (cth: Nasi Goreng)"
+            placeholderTextColor={COLORS.textMuted}
+            value={itemNama}
+            onChangeText={setItemNama}
+          />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TextInput
+              style={[styles.input, { flex: 2 }]}
+              placeholder="Harga (Rp)"
+              placeholderTextColor={COLORS.textMuted}
+              keyboardType="numeric"
+              value={itemHarga}
+              onChangeText={setItemHarga}
+            />
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              placeholder="Qty"
+              placeholderTextColor={COLORS.textMuted}
+              keyboardType="numeric"
+              value={itemQty}
+              onChangeText={setItemQty}
+            />
+          </View>
+          <TouchableOpacity style={styles.addBtn} onPress={addManualItem}>
+            <Ionicons name="add" size={18} color="#1a2332" />
+            <Text style={styles.addBtnText}>Tambah ke Keranjang</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Cart */}
+        <View style={styles.card}>
+          <View style={styles.cartHeader}>
+            <Text style={styles.cardTitle}><Ionicons name="cart" size={16} color={COLORS.accent} /> Keranjang ({cartCount})</Text>
+            {cart.length > 0 && (
+              <TouchableOpacity onPress={clearCart}><Text style={styles.clearText}>Kosongkan</Text></TouchableOpacity>
+            )}
+          </View>
+          {cart.length === 0 ? (
+            <Text style={styles.emptyCart}>Belum ada item</Text>
+          ) : (
+            <FlatList data={cart} renderItem={renderCartItem} keyExtractor={i => String(i.uid)} scrollEnabled={false} />
+          )}
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalValue}>{formatRupiah(cartTotal)}</Text>
+          </View>
+        </View>
+
+        {/* Member + Payment */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}><Ionicons name="card" size={16} color={COLORS.accent} /> Pembayaran</Text>
+
+          <TouchableOpacity style={styles.tapButton} onPress={openTapModal}>
+            <Ionicons name="scan" size={22} color={COLORS.accent} />
+            <Text style={styles.tapButtonText}>Tap / Scan Kartu (NFC / QR)</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.selectMember} onPress={() => setShowAnggotaPicker(true)}>
+            <View style={{ flex: 1 }}>
+              {selectedAnggota ? (
+                <>
+                  <Text style={styles.memberName}>{selectedAnggota.nama}</Text>
+                  <Text style={styles.memberSub}>
+                    {selectedAnggota.pangkat} · Saldo {formatRupiah(selectedAnggota.saldo)}
+                    {selectedAnggota.hutang > 0 ? ` · Hutang ${formatRupiah(selectedAnggota.hutang)}` : ''}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.memberPlaceholder}>Pilih anggota...</Text>
+              )}
+            </View>
+            <Ionicons name="chevron-down" size={18} color={COLORS.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.payBtn, (!selectedAnggota || cart.length === 0) && styles.payBtnDisabled]}
+            onPress={handleManualPayment}
+            disabled={!selectedAnggota || cart.length === 0 || loading}
+          >
+            {loading ? <ActivityIndicator color="#1a2332" /> : (
+              <>
+                <Ionicons name="checkmark-circle" size={18} color="#1a2332" />
+                <Text style={styles.payBtnText}>Proses Pembayaran</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
-      {/* Search */}
-      <View style={styles.searchRow}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color={COLORS.textMuted} />
-          <TextInput 
-            style={styles.searchInput}
-            placeholder="Cari produk..."
-            placeholderTextColor={COLORS.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-        <TouchableOpacity style={styles.tapButton} onPress={openTapModal}>
-          <Ionicons name="card" size={20} color={COLORS.bgDark} />
-          <Text style={styles.tapButtonText}>TAP</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Products */}
-      <FlatList
-        data={filteredProducts}
-        keyExtractor={item => item.id.toString()}
-        renderItem={renderProduct}
-        numColumns={2}
-        columnWrapperStyle={styles.productRow}
-        contentContainerStyle={styles.productList}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="cube-outline" size={48} color={COLORS.textMuted} />
-            <Text style={styles.emptyText}>Tidak ada produk</Text>
-          </View>
-        }
-      />
-
-      {/* Cart Bar */}
-      {cart.length > 0 && (
-        <View style={styles.cartBar}>
-          <TouchableOpacity style={styles.cartClearBtn} onPress={clearCart}>
-            <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
-          </TouchableOpacity>
-          <View style={styles.cartInfo}>
-            <Text style={styles.cartCount}>{cartCount} item</Text>
-            <Text style={styles.cartTotal}>{formatRupiah(cartTotal)}</Text>
-          </View>
-          <TouchableOpacity 
-            style={[styles.cartPayBtn, !selectedAnggota && styles.cartPayBtnDisabled]}
-            onPress={handleManualPayment}
-            disabled={!selectedAnggota}
-          >
-            <Ionicons name="checkmark-circle" size={20} color={COLORS.bgDark} />
-            <Text style={styles.cartPayText}>Bayar</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Member Picker Bar */}
-      <TouchableOpacity style={styles.memberPicker} onPress={() => setShowAnggotaPicker(true)}>
-        <Ionicons name="person-add" size={20} color={COLORS.accent} />
-        {selectedAnggota ? (
-          <>
-            <Text style={styles.memberName}>{selectedAnggota.nama}</Text>
-            <Text style={styles.memberSaldo}>{formatRupiah(selectedAnggota.saldo)}</Text>
-          </>
-        ) : (
-          <Text style={styles.memberPlaceholder}>Pilih Anggota</Text>
-        )}
-        <Ionicons name="chevron-down" size={18} color={COLORS.textMuted} />
-      </TouchableOpacity>
-
-      {/* Member Picker Modal */}
-      <Modal visible={showAnggotaPicker} transparent animationType="slide">
+      {/* Anggota picker modal */}
+      <Modal visible={showAnggotaPicker} animationType="slide" transparent onRequestClose={() => setShowAnggotaPicker(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Pilih Anggota</Text>
-              <TouchableOpacity onPress={() => { setShowAnggotaPicker(false); setAnggotaSearchQuery(''); }}>
+              <TouchableOpacity onPress={() => setShowAnggotaPicker(false)}>
                 <Ionicons name="close" size={24} color={COLORS.textPrimary} />
               </TouchableOpacity>
             </View>
-            <View style={styles.anggotaSearchBar}>
-              <Ionicons name="search" size={18} color={COLORS.textMuted} />
-              <TextInput
-                style={styles.anggotaSearchInput}
-                placeholder="Cari nama / NRP / pangkat..."
-                placeholderTextColor={COLORS.textMuted}
-                value={anggotaSearchQuery}
-                onChangeText={setAnggotaSearchQuery}
-                autoCorrect={false}
-              />
-              {anggotaSearchQuery ? (
-                <TouchableOpacity onPress={() => setAnggotaSearchQuery('')}>
-                  <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Cari nama / NRP / pangkat..."
+              placeholderTextColor={COLORS.textMuted}
+              value={anggotaSearchQuery}
+              onChangeText={setAnggotaSearchQuery}
+            />
             <FlatList
-              data={anggotaList.filter(a => {
-                if (!anggotaSearchQuery) return true;
-                const q = anggotaSearchQuery.toLowerCase();
-                return (
-                  (a.nama || '').toLowerCase().includes(q) ||
-                  (a.nrp || '').toLowerCase().includes(q) ||
-                  (a.pangkat || '').toLowerCase().includes(q) ||
-                  (a.kartu_id || '').toLowerCase().includes(q)
-                );
-              })}
-              keyExtractor={item => item.kartu_id}
+              data={filteredAnggota}
+              keyExtractor={a => a.kartu_id}
+              style={{ maxHeight: 360 }}
               renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.anggotaItem}
-                  onPress={() => { setSelectedAnggota(item); setShowAnggotaPicker(false); setAnggotaSearchQuery(''); }}
+                <TouchableOpacity
+                  style={styles.anggotaRow}
+                  onPress={() => {
+                    setSelectedAnggota({ ...item, hutang: item.hutang || 0 });
+                    setShowAnggotaPicker(false);
+                    setAnggotaSearchQuery('');
+                  }}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.anggotaName}>{item.nama}</Text>
-                    <Text style={styles.anggotaPangkat}>{item.pangkat} · {item.kartu_id}</Text>
+                    <Text style={styles.memberName}>{item.nama}</Text>
+                    <Text style={styles.memberSub}>
+                      {item.pangkat} · {item.kartu_id} · {formatRupiah(item.saldo)}
+                      {item.hutang > 0 ? ` · Hutang ${formatRupiah(item.hutang)}` : ''}
+                    </Text>
                   </View>
-                  <Text style={styles.anggotaSaldo}>{formatRupiah(item.saldo)}</Text>
                 </TouchableOpacity>
               )}
-              ListEmptyComponent={
-                <View style={{ padding: 30, alignItems: 'center' }}>
-                  <Ionicons name="person-remove" size={32} color={COLORS.textMuted} />
-                  <Text style={{ color: COLORS.textMuted, marginTop: 8 }}>
-                    {anggotaSearchQuery ? 'Anggota tidak ditemukan' : 'Belum ada anggota'}
-                  </Text>
-                </View>
-              }
+              ListEmptyComponent={<Text style={styles.emptyCart}>Tidak ada hasil</Text>}
             />
           </View>
         </View>
       </Modal>
 
-      {/* TAP Payment Modal - WITH NFC SCAN */}
-      <Modal visible={showTapModal} transparent animationType="fade">
+      {/* Tap modal */}
+      <Modal visible={showTapModal} animationType="slide" transparent onRequestClose={closeTapModal}>
         <View style={styles.modalOverlay}>
-          <View style={styles.tapModalContent}>
-            {tapStep === 1 && !showQRScanner && (
-              <>
-                <Animated.View style={[
-                  styles.tapIconWrap,
-                  nfcScanning && { transform: [{ scale: pulseAnim }] }
-                ]}>
-                  <Ionicons name="card" size={48} color={COLORS.bgDark} />
-                </Animated.View>
-                <Text style={styles.tapTitle}>Tempelkan Kartu</Text>
-                <Text style={styles.tapSubtitle}>Scan NFC atau QR Code Smart Card</Text>
-                
-                {/* NFC Scan Button */}
-                {nfcSupported && (
-                  <TouchableOpacity 
-                    style={[styles.nfcScanBtn, nfcScanning && styles.nfcScanBtnActive]} 
-                    onPress={nfcScanning ? stopNfcScan : startNfcScan}
-                  >
-                    <Ionicons 
-                      name={nfcScanning ? "radio" : "wifi"} 
-                      size={24} 
-                      color={nfcScanning ? COLORS.danger : COLORS.accent} 
-                    />
-                    <Text style={[styles.nfcScanText, nfcScanning && styles.nfcScanTextActive]}>
-                      {nfcScanning ? 'Menunggu Kartu...' : 'Scan NFC'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Tap / Scan Kartu</Text>
+              <TouchableOpacity onPress={closeTapModal}>
+                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
 
-                {/* QR Scan Button */}
-                <TouchableOpacity 
-                  style={styles.qrScanBtn}
-                  onPress={() => {
-                    stopNfcScan();
-                    setShowQRScanner(true);
-                    setQrScanned(false);
-                  }}
-                >
-                  <Ionicons name="qr-code" size={24} color={COLORS.accent} />
-                  <Text style={styles.qrScanText}>Scan QR Code</Text>
-                </TouchableOpacity>
-                
-                <View style={styles.tapDivider}>
-                  <View style={styles.tapDividerLine} />
-                  <Text style={styles.tapDividerText}>ATAU INPUT MANUAL</Text>
-                  <View style={styles.tapDividerLine} />
-                </View>
-
-                <View style={styles.tapInputRow}>
-                  <TextInput
-                    style={styles.tapInput}
-                    placeholder="ID Kartu / NFC UID..."
-                    placeholderTextColor={COLORS.textMuted}
-                    value={tapInput}
-                    onChangeText={setTapInput}
-                    onSubmitEditing={handleTapSearch}
-                  />
-                  <TouchableOpacity style={styles.tapSearchBtn} onPress={handleTapSearch} disabled={tapLoading}>
-                    {tapLoading ? (
-                      <ActivityIndicator size="small" color={COLORS.bgDark} />
-                    ) : (
-                      <Ionicons name="search" size={20} color={COLORS.bgDark} />
-                    )}
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity style={styles.tapCancelBtn} onPress={closeTapModal}>
-                  <Text style={styles.tapCancelText}>Batal</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {/* QR Scanner View */}
-            {tapStep === 1 && showQRScanner && (
-              <>
-                <Text style={styles.tapTitle}>Scan QR Code</Text>
-                <Text style={styles.tapSubtitle}>Arahkan kamera ke QR Code Smart Card</Text>
-                
+            {showQRScanner ? (
+              <View style={styles.qrContainer}>
                 {permission?.granted ? (
-                  <View style={styles.qrCameraContainer}>
-                    <CameraView
-                      style={styles.qrCamera}
-                      barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-                      onBarcodeScanned={qrScanned ? undefined : handleQRScanned}
-                    >
-                      <View style={styles.qrOverlay}>
-                        <View style={styles.qrFrame}>
-                          <View style={[styles.qrCorner, styles.topLeft]} />
-                          <View style={[styles.qrCorner, styles.topRight]} />
-                          <View style={[styles.qrCorner, styles.bottomLeft]} />
-                          <View style={[styles.qrCorner, styles.bottomRight]} />
-                        </View>
-                      </View>
-                    </CameraView>
-                  </View>
+                  <CameraView
+                    style={styles.camera}
+                    facing="back"
+                    barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                    onBarcodeScanned={qrScanned ? undefined : handleQRScanned}
+                  />
                 ) : (
-                  <View style={styles.permissionBox}>
-                    <Ionicons name="camera-outline" size={48} color={COLORS.textMuted} />
-                    <Text style={styles.permissionText}>Izin kamera diperlukan</Text>
-                    <TouchableOpacity style={styles.permissionBtn} onPress={requestPermission}>
-                      <Text style={styles.permissionBtnText}>Izinkan Kamera</Text>
+                  <View style={styles.center}>
+                    <Text style={styles.memberSub}>Izin kamera diperlukan</Text>
+                    <TouchableOpacity style={styles.addBtn} onPress={requestPermission}>
+                      <Text style={styles.addBtnText}>Beri Izin Kamera</Text>
                     </TouchableOpacity>
                   </View>
                 )}
-                
-                <TouchableOpacity 
-                  style={styles.tapCancelBtn} 
-                  onPress={() => setShowQRScanner(false)}
-                >
-                  <Text style={styles.tapCancelText}>Kembali</Text>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={() => { setShowQRScanner(false); setQrScanned(false); }}>
+                  <Text style={styles.secondaryBtnText}>Kembali</Text>
                 </TouchableOpacity>
-              </>
-            )}
-
-            {tapStep === 2 && tapAnggota && (
+              </View>
+            ) : (
               <>
-                <View style={[styles.tapIconWrap, { backgroundColor: COLORS.primary }]}>
-                  <Ionicons name="person-circle" size={48} color={COLORS.accent} />
-                </View>
-                <Text style={styles.tapTitle}>{tapAnggota.nama}</Text>
-                <Text style={styles.tapSubtitle}>{tapAnggota.pangkat}</Text>
-                <Text style={styles.tapSaldo}>{formatRupiah(tapAnggota.saldo)}</Text>
-                
-                <View style={styles.tapSummary}>
-                  <Text style={styles.tapSummaryLabel}>Total Belanja:</Text>
-                  <Text style={styles.tapSummaryValue}>{formatRupiah(cartTotal)}</Text>
-                </View>
-
-                {tapAnggota.saldo >= cartTotal ? (
-                  <TouchableOpacity 
-                    style={styles.tapConfirmBtn} 
-                    onPress={handleTapConfirm}
-                    disabled={tapLoading}
-                  >
-                    {tapLoading ? (
-                      <ActivityIndicator size="small" color={COLORS.bgDark} />
-                    ) : (
-                      <>
-                        <Ionicons name="checkmark-circle" size={22} color={COLORS.bgDark} />
-                        <Text style={styles.tapConfirmText}>Bayar Sekarang</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.tapInsufficientWrap}>
-                    <Ionicons name="warning" size={20} color={COLORS.danger} />
-                    <Text style={styles.tapInsufficientText}>Saldo Tidak Cukup</Text>
+                {nfcScanning ? (
+                  <View style={styles.center}>
+                    <Animated.View style={[styles.nfcPulse, { transform: [{ scale: pulseAnim }] }]}>
+                      <Ionicons name="card" size={40} color={COLORS.accent} />
+                    </Animated.View>
+                    <Text style={styles.memberSub}>Tempelkan kartu ke perangkat...</Text>
+                    <TouchableOpacity style={styles.secondaryBtn} onPress={stopNfcScan}>
+                      <Text style={styles.secondaryBtnText}>Batal</Text>
+                    </TouchableOpacity>
                   </View>
+                ) : (
+                  <>
+                    {nfcSupported && (
+                      <TouchableOpacity style={styles.tapButton} onPress={startNfcScan}>
+                        <Ionicons name="card" size={22} color={COLORS.accent} />
+                        <Text style={styles.tapButtonText}>Scan NFC</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={styles.tapButton} onPress={() => { setQrScanned(false); setShowQRScanner(true); }}>
+                      <Ionicons name="qr-code" size={22} color={COLORS.accent} />
+                      <Text style={styles.tapButtonText}>Scan QR Code</Text>
+                    </TouchableOpacity>
+                    <Text style={[styles.memberSub, { textAlign: 'center', marginVertical: 8 }]}>atau input manual</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TextInput
+                        style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                        placeholder="NFC UID / ID Kartu"
+                        placeholderTextColor={COLORS.textMuted}
+                        value={tapInput}
+                        onChangeText={setTapInput}
+                      />
+                      <TouchableOpacity style={styles.searchBtn} onPress={() => lookupMember(tapInput, 'NFC')}>
+                        {tapLoading ? <ActivityIndicator color="#1a2332" /> : <Ionicons name="search" size={20} color="#1a2332" />}
+                      </TouchableOpacity>
+                    </View>
+                  </>
                 )}
-                
-                <TouchableOpacity style={styles.tapCancelBtn} onPress={closeTapModal}>
-                  <Text style={styles.tapCancelText}>Batal</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {tapStep === 3 && tapResult && (
-              <>
-                <View style={[styles.tapIconWrap, { backgroundColor: COLORS.success }]}>
-                  <Ionicons name="checkmark" size={48} color="white" />
-                </View>
-                <Text style={[styles.tapTitle, { color: COLORS.success }]}>Pembayaran Berhasil!</Text>
-                <Text style={styles.tapSubtitle}>Trx: {tapResult.trx_id}</Text>
-                <Text style={styles.tapSaldo}>Sisa Saldo: {formatRupiah(tapResult.saldo_sesudah)}</Text>
-                
-                <TouchableOpacity style={styles.tapConfirmBtn} onPress={closeTapModal}>
-                  <Ionicons name="refresh" size={22} color={COLORS.bgDark} />
-                  <Text style={styles.tapConfirmText}>Transaksi Baru</Text>
-                </TouchableOpacity>
               </>
             )}
           </View>
         </View>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bgDark },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  
-  // Categories
-  categoryBar: { 
-    flexGrow: 0,
-    flexShrink: 0, // Prevent shrinking
-    height: 56, // Fixed height
-    paddingHorizontal: SIZES.padding, 
-    paddingVertical: 12,
-    borderBottomWidth: 1, 
-    borderBottomColor: COLORS.border,
-  },
-  categoryChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8, marginRight: 8,
-    backgroundColor: COLORS.bgCard, borderRadius: 20,
-    borderWidth: 1, borderColor: COLORS.border,
-    height: 36, // Fixed chip height
-  },
-  categoryChipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  categoryText: { color: COLORS.textPrimary, fontSize: SIZES.sm, fontWeight: '500' },
-  categoryTextActive: { color: COLORS.bgDark, fontWeight: '600' },
-
-  // Search
-  searchRow: { 
-    flexDirection: 'row', gap: 10, 
-    paddingHorizontal: SIZES.padding, paddingVertical: 12,
-  },
-  searchBox: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: COLORS.bgCard, borderRadius: 10, paddingHorizontal: 12,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  searchInput: { flex: 1, color: COLORS.textPrimary, paddingVertical: 10 },
-  tapButton: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: COLORS.accent, paddingHorizontal: 16, borderRadius: 10,
-  },
-  tapButtonText: { color: COLORS.bgDark, fontWeight: '700', fontSize: SIZES.sm },
-
-  // Products
-  productList: { padding: SIZES.padding, paddingBottom: 160 },
-  productRow: { justifyContent: 'space-between' },
-  productCard: {
-    width: '48%', backgroundColor: COLORS.bgCard, borderRadius: 12, padding: 14,
-    marginBottom: 12, borderWidth: 2, borderColor: 'transparent',
-  },
-  productCardInCart: { borderColor: COLORS.accent, backgroundColor: 'rgba(197,164,78,0.1)' },
-  productCode: { fontSize: 10, color: COLORS.textMuted, marginBottom: 4 },
-  productName: { fontSize: SIZES.md, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 8, height: 40 },
-  productFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  productPrice: { fontSize: SIZES.lg, fontWeight: '700', color: COLORS.accent },
-  productStock: { fontSize: 10, color: COLORS.textMuted },
-  productStockLow: { color: COLORS.danger },
-  cartBadge: {
-    position: 'absolute', top: 8, right: 8,
-    backgroundColor: COLORS.accent, borderRadius: 12,
-    minWidth: 24, height: 24, alignItems: 'center', justifyContent: 'center',
-  },
-  cartBadgeText: { color: COLORS.bgDark, fontWeight: '700', fontSize: 12 },
-  emptyState: { alignItems: 'center', paddingTop: 60 },
-  emptyText: { color: COLORS.textMuted, marginTop: 12 },
-
-  // Cart bar
-  cartBar: {
-    position: 'absolute', bottom: 70, left: SIZES.padding, right: SIZES.padding,
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: COLORS.bgCard, borderRadius: 14, padding: 12,
-    borderWidth: 1, borderColor: COLORS.border,
-    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, elevation: 10,
-  },
-  cartClearBtn: { padding: 8 },
-  cartInfo: { flex: 1 },
-  cartCount: { fontSize: SIZES.xs, color: COLORS.textMuted },
-  cartTotal: { fontSize: SIZES.xl, fontWeight: '700', color: COLORS.accent },
-  cartPayBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: COLORS.accent, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10,
-  },
-  cartPayBtnDisabled: { opacity: 0.5 },
-  cartPayText: { color: COLORS.bgDark, fontWeight: '700', fontSize: SIZES.md },
-
-  // Member picker
-  memberPicker: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: COLORS.bgCard, paddingHorizontal: SIZES.padding, paddingVertical: 14,
-    borderTopWidth: 1, borderTopColor: COLORS.border,
-  },
-  memberName: { flex: 1, color: COLORS.textPrimary, fontWeight: '600' },
-  memberSaldo: { color: COLORS.accent, fontWeight: '600' },
-  memberPlaceholder: { flex: 1, color: COLORS.textMuted },
-
-  // Modal
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: COLORS.bgCard, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    maxHeight: '70%', paddingBottom: 30,
-  },
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: SIZES.padding, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  modalTitle: { fontSize: SIZES.xl, fontWeight: '700', color: COLORS.textPrimary },
-  anggotaSearchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    margin: SIZES.padding, marginBottom: 4,
-    paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: COLORS.bgInput, borderRadius: 10,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  anggotaSearchInput: {
-    flex: 1, color: COLORS.textPrimary, fontSize: SIZES.md, paddingVertical: 4,
-  },
-  anggotaItem: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: SIZES.padding, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  anggotaName: { fontSize: SIZES.md, fontWeight: '600', color: COLORS.textPrimary },
-  anggotaPangkat: { fontSize: SIZES.sm, color: COLORS.textMuted, marginTop: 2 },
-  anggotaSaldo: { fontSize: SIZES.md, fontWeight: '600', color: COLORS.accent },
-
-  // TAP Modal
-  tapModalContent: {
-    backgroundColor: COLORS.bgCard, borderRadius: 24, margin: 24, padding: 28,
-    alignItems: 'center',
-  },
-  tapIconWrap: {
-    width: 100, height: 100, borderRadius: 50, backgroundColor: COLORS.accent,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 20,
-  },
-  tapTitle: { fontSize: SIZES.xl, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 4 },
-  tapSubtitle: { fontSize: SIZES.md, color: COLORS.textMuted, marginBottom: 20 },
-  tapSaldo: { fontSize: 28, fontWeight: '700', color: COLORS.accent, marginBottom: 20 },
-  
-  // NFC Scan Button
-  nfcScanBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: COLORS.accent + '20', borderRadius: 16,
-    paddingVertical: 16, paddingHorizontal: 32, marginBottom: 16,
-    borderWidth: 2, borderColor: COLORS.accent,
-  },
-  nfcScanBtnActive: {
-    backgroundColor: COLORS.danger + '20', borderColor: COLORS.danger,
-  },
-  nfcScanText: { fontSize: SIZES.lg, fontWeight: '700', color: COLORS.accent },
-  nfcScanTextActive: { color: COLORS.danger },
-  nfcScanningIndicator: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16,
-  },
-  nfcScanningText: { color: COLORS.accent, fontSize: SIZES.sm },
-  
-  // Divider
-  tapDivider: {
-    flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: 16,
-  },
-  tapDividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
-  tapDividerText: { paddingHorizontal: 12, color: COLORS.textMuted, fontSize: SIZES.sm },
-  
-  tapInputRow: { flexDirection: 'row', gap: 10, width: '100%', marginBottom: 16 },
-  tapInput: {
-    flex: 1, backgroundColor: COLORS.bgSecondary, borderRadius: 12, 
-    paddingHorizontal: 16, paddingVertical: 12, color: COLORS.textPrimary,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  tapSearchBtn: {
-    backgroundColor: COLORS.accent, borderRadius: 12, paddingHorizontal: 16,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  tapCancelBtn: {
-    backgroundColor: COLORS.bgSecondary, borderRadius: 12, paddingVertical: 14,
-    paddingHorizontal: 40, marginTop: 12,
-  },
-  tapCancelText: { color: COLORS.textSecondary, fontWeight: '600' },
-  tapSummary: {
-    flexDirection: 'row', justifyContent: 'space-between', width: '100%',
-    backgroundColor: COLORS.bgSecondary, padding: 14, borderRadius: 12, marginBottom: 20,
-  },
-  tapSummaryLabel: { color: COLORS.textMuted },
-  tapSummaryValue: { color: COLORS.textPrimary, fontWeight: '700' },
-  tapConfirmBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: COLORS.accent, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 32,
-  },
-  tapConfirmText: { color: COLORS.bgDark, fontWeight: '700', fontSize: SIZES.lg },
-  tapInsufficientWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(239,68,68,0.15)', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12,
-  },
-  tapInsufficientText: { color: COLORS.danger, fontWeight: '600' },
-  
-  // QR Scan Button
-  qrScanBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: COLORS.primary + '40', borderRadius: 16,
-    paddingVertical: 16, paddingHorizontal: 32, marginBottom: 16,
-    borderWidth: 2, borderColor: COLORS.primary, width: '100%',
-    justifyContent: 'center',
-  },
-  qrScanText: { fontSize: SIZES.lg, fontWeight: '700', color: COLORS.accent },
-  
-  // QR Camera
-  qrCameraContainer: {
-    width: '100%', height: 250, borderRadius: 16, overflow: 'hidden',
-    marginBottom: 16,
-  },
-  qrCamera: { flex: 1 },
-  qrOverlay: { 
-    flex: 1, alignItems: 'center', justifyContent: 'center', 
-    backgroundColor: 'rgba(0,0,0,0.3)' 
-  },
-  qrFrame: { width: 180, height: 180, position: 'relative' },
-  qrCorner: { position: 'absolute', width: 25, height: 25, borderColor: COLORS.accent },
-  topLeft: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3 },
-  topRight: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3 },
-  bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3 },
-  bottomRight: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3 },
-  
-  // Permission box
-  permissionBox: {
-    alignItems: 'center', padding: 24, marginBottom: 16,
-  },
-  permissionText: { color: COLORS.textMuted, marginTop: 12, marginBottom: 16 },
-  permissionBtn: {
-    backgroundColor: COLORS.accent, paddingHorizontal: 20, paddingVertical: 10,
-    borderRadius: 10,
-  },
-  permissionBtnText: { color: COLORS.bgDark, fontWeight: '700' },
+  center: { alignItems: 'center', justifyContent: 'center', paddingVertical: 24 },
+  card: { backgroundColor: COLORS.bgCard, borderRadius: SIZES.radius, padding: SIZES.padding, marginBottom: 14, borderWidth: 1, borderColor: COLORS.border },
+  cardTitle: { color: COLORS.textPrimary, fontSize: SIZES.lg, fontWeight: '700', marginBottom: 12 },
+  input: { backgroundColor: COLORS.bgInput, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.textPrimary, fontSize: SIZES.md, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },
+  addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.accent, borderRadius: 10, paddingVertical: 12, marginTop: 4 },
+  addBtnText: { color: '#1a2332', fontWeight: '700', fontSize: SIZES.md },
+  cartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  clearText: { color: COLORS.danger, fontSize: SIZES.sm },
+  emptyCart: { color: COLORS.textMuted, textAlign: 'center', paddingVertical: 20 },
+  cartItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  cartItemName: { color: COLORS.textPrimary, fontSize: SIZES.md, fontWeight: '600' },
+  cartItemSub: { color: COLORS.textMuted, fontSize: SIZES.xs, marginTop: 2 },
+  cartItemSubtotal: { color: COLORS.accent, fontSize: SIZES.md, fontWeight: '700', minWidth: 84, textAlign: 'right' },
+  qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 8 },
+  qtyBtn: { backgroundColor: COLORS.bgInput, borderRadius: 6, padding: 5 },
+  qtyText: { color: COLORS.textPrimary, minWidth: 22, textAlign: 'center' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 12, borderTopWidth: 2, borderTopColor: COLORS.border },
+  totalLabel: { color: COLORS.textSecondary, fontSize: SIZES.md },
+  totalValue: { color: COLORS.accent, fontSize: SIZES.xxl, fontWeight: '700' },
+  tapButton: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.bgInput, borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },
+  tapButtonText: { color: COLORS.textPrimary, fontSize: SIZES.md, fontWeight: '600' },
+  selectMember: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.bgInput, borderRadius: 10, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: COLORS.border },
+  memberName: { color: COLORS.textPrimary, fontSize: SIZES.md, fontWeight: '600' },
+  memberSub: { color: COLORS.textMuted, fontSize: SIZES.sm, marginTop: 2 },
+  memberPlaceholder: { color: COLORS.textMuted, fontSize: SIZES.md },
+  payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.accent, borderRadius: 10, paddingVertical: 15 },
+  payBtnDisabled: { opacity: 0.4 },
+  payBtnText: { color: '#1a2332', fontWeight: '700', fontSize: SIZES.lg },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: COLORS.bgCard, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: SIZES.padding, paddingBottom: 30 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  modalTitle: { color: COLORS.textPrimary, fontSize: SIZES.xl, fontWeight: '700' },
+  anggotaRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  searchBtn: { backgroundColor: COLORS.accent, borderRadius: 10, width: 50, alignItems: 'center', justifyContent: 'center' },
+  secondaryBtn: { backgroundColor: COLORS.bgInput, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 12, borderWidth: 1, borderColor: COLORS.border },
+  secondaryBtnText: { color: COLORS.textPrimary, fontWeight: '600' },
+  nfcPulse: { width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(197,164,78,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  qrContainer: { height: 380 },
+  camera: { flex: 1, borderRadius: 12, overflow: 'hidden' },
 });

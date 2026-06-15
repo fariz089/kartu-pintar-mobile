@@ -52,7 +52,16 @@ function extractMiliId(rawData) {
   if (data.includes("/info/")) {
     const parts = data.split("/info/");
     if (parts.length > 1) {
-      return parts[1].split("?")[0].split("#")[0].trim();
+      return parts[1].split("?")[0].split("#")[0].split("/")[0].trim();
+    }
+  }
+  // Handle Smart Card public/internal scan URLs: /temu/xxx and /scan/result/xxx
+  for (const marker of ["/temu/", "/scan/result/"]) {
+    if (data.includes(marker)) {
+      const parts = data.split(marker);
+      if (parts.length > 1) {
+        return parts[1].split("?")[0].split("#")[0].split("/")[0].trim();
+      }
     }
   }
 
@@ -173,22 +182,24 @@ export const keuanganAPI = {
     return res.data;
   },
 
-  // Pembayaran dengan cart (supermarket style)
-  pembayaranCart: async (kartuId, items, metode = "Manual") => {
+  // Pembayaran manual: items bebas [{nama, harga, jumlah}], dukungan hutang.
+  // allowHutang=false → kalau saldo kurang, response.need_hutang=true (minta konfirmasi).
+  // allowHutang=true  → saldo dipakai dulu, sisa kekurangan jadi hutang.
+  pembayaranCart: async (kartuId, items, metode = "Manual", allowHutang = false) => {
     const res = await api.post("/api/pembayaran/cart", {
       kartu_id: kartuId,
-      items, // [{produk_id, jumlah}]
+      items, // [{nama, harga, jumlah}]
       metode,
+      allow_hutang: allowHutang,
     });
     return res.data;
   },
 
-  // Pembayaran instant via NFC/QR tap
-  pembayaranTap: async (scanData, items = [], metode = "NFC") => {
+  // Lookup anggota via NFC/QR tap (untuk dipilih di kasir). Tidak langsung membayar.
+  pembayaranTap: async (scanData, metode = "NFC") => {
     const cleaned = extractMiliId(scanData);
     const res = await api.post("/api/pembayaran/tap", {
       scan_data: cleaned,
-      items, // [{produk_id, jumlah}] - kosong = hanya cek member
       metode,
     });
     return res.data;
@@ -223,32 +234,7 @@ export const keuanganAPI = {
   },
 };
 
-// PRODUK & KATEGORI
-export const produkAPI = {
-  list: async (kategoriId = null, search = "", availableOnly = true) => {
-    const params = {};
-    if (kategoriId) params.kategori_id = kategoriId;
-    if (search) params.search = search;
-    params.available = availableOnly ? "true" : "false";
-    const res = await api.get("/api/produk", { params });
-    return res.data;
-  },
-  detail: async (produkId) => {
-    const res = await api.get(`/api/produk/${produkId}`);
-    return res.data;
-  },
-  byKode: async (kode) => {
-    const res = await api.get(`/api/produk/kode/${kode}`);
-    return res.data;
-  },
-};
-
-export const kategoriAPI = {
-  list: async () => {
-    const res = await api.get("/api/kategori");
-    return res.data;
-  },
-};
+// PRODUK & KATEGORI dihapus — kasir sekarang manual (nama item + harga).
 
 // LACAK
 export const lacakAPI = {
