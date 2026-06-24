@@ -12,6 +12,21 @@ export default function AnggotaListScreen({ route, navigation }) {
 
   // Optional filter dari Dashboard stat-card (Aktif/Hilang)
   const filterStatus = route?.params?.filterStatus;
+  // Mode kelola (dari Manajemen): tap → edit form, tampilkan tombol tambah
+  const manageMode = route?.params?.manageMode;
+
+  useEffect(() => {
+    if (manageMode) {
+      navigation.setOptions({
+        title: 'Kelola Anggota',
+        headerRight: () => (
+          <TouchableOpacity onPress={() => navigation.navigate('AnggotaForm', { mode: 'create' })} style={{ paddingHorizontal: 4 }}>
+            <Ionicons name="add-circle" size={26} color={COLORS.accent} />
+          </TouchableOpacity>
+        ),
+      });
+    }
+  }, [manageMode]);
 
   const load = async () => {
     try {
@@ -43,7 +58,11 @@ export default function AnggotaListScreen({ route, navigation }) {
     return (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => navigation.navigate('AnggotaDetail', {
+      onPress={() => navigation.navigate(manageMode ? 'AnggotaForm' : 'AnggotaDetail', manageMode ? {
+        mode: 'edit',
+        kartuId: item.kartu_id || item.id,
+        anggota: item,
+      } : {
         anggota: item,
         kartuId: item.kartu_id || item.id,
       })}

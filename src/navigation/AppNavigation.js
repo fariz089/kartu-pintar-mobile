@@ -21,6 +21,16 @@ import TransaksiScreen from '../screens/TransaksiScreen';
 import LacakKartuScreen from '../screens/LacakKartuScreen';
 import LocationHistoryScreen from '../screens/LocationHistoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import ManajemenScreen from '../screens/ManajemenScreen';
+import UserListScreen from '../screens/UserListScreen';
+import UserFormScreen from '../screens/UserFormScreen';
+import AnggotaFormScreen from '../screens/AnggotaFormScreen';
+import HutangListScreen from '../screens/HutangListScreen';
+import TrackerListScreen from '../screens/TrackerListScreen';
+import ScanLogScreen from '../screens/ScanLogScreen';
+import ScanSearchScreen from '../screens/ScanSearchScreen';
+import CetakKartuScreen from '../screens/CetakKartuScreen';
+import BackupCodesScreen from '../screens/BackupCodesScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -136,6 +146,16 @@ export default function AppNavigation() {
         <Stack.Screen name="Transaksi" component={TransaksiScreen} options={{ title: 'Riwayat Transaksi' }} />
         <Stack.Screen name="LacakKartu" component={LacakKartuScreen} options={{ title: 'Lacak Kartu' }} />
         <Stack.Screen name="LocationHistory" component={LocationHistoryScreen} options={{ title: 'Riwayat Lokasi', headerShown: false }} />
+        <Stack.Screen name="Manajemen" component={ManajemenScreen} options={{ title: 'Manajemen' }} />
+        <Stack.Screen name="UserList" component={UserListScreen} options={{ title: 'Manajemen User' }} />
+        <Stack.Screen name="UserForm" component={UserFormScreen} options={{ title: 'User' }} />
+        <Stack.Screen name="AnggotaForm" component={AnggotaFormScreen} options={{ title: 'Form Anggota' }} />
+        <Stack.Screen name="HutangList" component={HutangListScreen} options={{ title: 'Hutang / Piutang' }} />
+        <Stack.Screen name="TrackerList" component={TrackerListScreen} options={{ title: 'Find My Trackers' }} />
+        <Stack.Screen name="ScanLog" component={ScanLogScreen} options={{ title: 'Riwayat Scan' }} />
+        <Stack.Screen name="ScanSearch" component={ScanSearchScreen} options={{ title: 'Scan Manual' }} />
+        <Stack.Screen name="CetakKartu" component={CetakKartuScreen} options={{ title: 'Cetak Kartu' }} />
+        <Stack.Screen name="BackupCodes" component={BackupCodesScreen} options={{ title: 'Kode Cadangan 2FA' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

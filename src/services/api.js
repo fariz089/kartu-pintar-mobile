@@ -291,5 +291,152 @@ export const dashboardAPI = {
   },
 };
 
+// ===========================================
+// ADMIN / MANAJEMEN (fitur yang sebelumnya web-only)
+// ===========================================
+
+// USER MANAGEMENT (admin)
+export const userAPI = {
+  list: async (search = "") => {
+    const res = await api.get("/api/admin/users", { params: { search } });
+    return res.data;
+  },
+  anggotaTanpaUser: async () => {
+    const res = await api.get("/api/admin/users/anggota-tanpa-user");
+    return res.data;
+  },
+  create: async (payload) => {
+    // payload: { username, password, nama, role, anggota_id? }
+    const res = await api.post("/api/admin/users", payload);
+    return res.data;
+  },
+  detail: async (id) => {
+    const res = await api.get(`/api/admin/users/${id}`);
+    return res.data;
+  },
+  update: async (id, payload) => {
+    // payload bisa berisi: { nama, role, is_active, password?, anggota_id? }
+    const res = await api.put(`/api/admin/users/${id}`, payload);
+    return res.data;
+  },
+  toggle: async (id) => {
+    const res = await api.post(`/api/admin/users/${id}/toggle`);
+    return res.data;
+  },
+  resetPassword: async (id, newPassword) => {
+    const res = await api.post(`/api/admin/users/${id}/reset-password`, {
+      new_password: newPassword,
+    });
+    return res.data;
+  },
+  resetTotp: async (id) => {
+    const res = await api.post(`/api/admin/users/${id}/reset-totp`);
+    return res.data;
+  },
+  bulkCreate: async () => {
+    const res = await api.post("/api/admin/users/bulk-create");
+    return res.data;
+  },
+  createForAnggota: async (kartuId, payload = {}) => {
+    // payload: { username?, password?, role? }
+    const res = await api.post(`/api/admin/anggota/${kartuId}/buat-user`, payload);
+    return res.data;
+  },
+};
+
+// CRUD ANGGOTA (admin) — list/detail tetap pakai anggotaAPI yang sudah ada
+export const anggotaAdminAPI = {
+  create: async (payload) => {
+    const res = await api.post("/api/admin/anggota", payload);
+    return res.data;
+  },
+  update: async (kartuId, payload) => {
+    const res = await api.put(`/api/admin/anggota/${kartuId}`, payload);
+    return res.data;
+  },
+  remove: async (kartuId) => {
+    const res = await api.delete(`/api/admin/anggota/${kartuId}`);
+    return res.data;
+  },
+};
+
+// HUTANG / PIUTANG (admin)
+export const hutangAPI = {
+  list: async () => {
+    const res = await api.get("/api/admin/hutang");
+    return res.data;
+  },
+  bayar: async (kartuId, nominal, sumber = "Tunai") => {
+    // sumber: 'Tunai' (dari kas) atau 'Saldo' (potong saldo anggota)
+    const res = await api.post("/api/admin/hutang/bayar", {
+      kartu_id: kartuId,
+      nominal,
+      sumber,
+    });
+    return res.data;
+  },
+};
+
+// FIND MY TRACKER MANAGEMENT (admin)
+export const trackerAPI = {
+  list: async () => {
+    const res = await api.get("/api/admin/findmy-trackers");
+    return res.data;
+  },
+  add: async (payload) => {
+    // payload: { canonical_id, anggota_id, nama_tracker? }
+    const res = await api.post("/api/admin/findmy-trackers", payload);
+    return res.data;
+  },
+  update: async (id, payload) => {
+    const res = await api.put(`/api/admin/findmy-trackers/${id}`, payload);
+    return res.data;
+  },
+  remove: async (id) => {
+    const res = await api.delete(`/api/admin/findmy-trackers/${id}`);
+    return res.data;
+  },
+};
+
+// SCAN LOG (admin)
+export const scanLogAPI = {
+  list: async (limit = 100) => {
+    const res = await api.get("/api/admin/scan-log", { params: { limit } });
+    return res.data;
+  },
+};
+
+// SCAN VIA SEARCH MANUAL (semua role)
+export const scanSearchAPI = {
+  search: async (scanData, metode = "Manual") => {
+    const cleaned = extractMiliId(scanData);
+    const res = await api.post("/api/mobile/scan/search", {
+      scan_data: cleaned,
+      metode,
+    });
+    return res.data;
+  },
+};
+
+// CETAK / PRINT KARTU (admin & pers; user → kartunya sendiri)
+export const cetakKartuAPI = {
+  list: async () => {
+    const res = await api.get("/api/cetak-kartu");
+    return res.data;
+  },
+};
+
+// TOTP BACKUP CODES (per-user)
+export const backupCodesAPI = {
+  status: async () => {
+    const res = await api.get("/api/auth/backup-codes");
+    return res.data;
+  },
+  regenerate: async (password) => {
+    const res = await api.post("/api/auth/backup-codes/regenerate", { password });
+    return res.data;
+  },
+};
+
 export { API_BASE, extractMiliId };
 export default api;

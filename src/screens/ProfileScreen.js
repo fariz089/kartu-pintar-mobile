@@ -269,6 +269,17 @@ export default function ProfileScreen({ navigation }) {
         </View>
       )}
 
+      {/* Manajemen (admin & pers) */}
+      {['admin', 'pers', 'pam'].includes(user?.role) && (
+        <View style={[styles.section, { marginTop: 8 }]}>
+          <TouchableOpacity style={[styles.card, styles.menuRow]} onPress={() => navigation.navigate('Manajemen')}>
+            <Ionicons name="construct-outline" size={20} color={COLORS.accent} />
+            <Text style={[styles.menuText, { color: COLORS.accent }]}>Manajemen & Admin</Text>
+            <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Change Password */}
       <View style={[styles.section, { marginTop: 8 }]}>
         <TouchableOpacity style={[styles.card, styles.menuRow]} onPress={() => setShowChangePassword(!showChangePassword)}>
